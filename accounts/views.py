@@ -32,79 +32,87 @@ from accounts import utils
 # =================================================================
 # *** Doctor (Register) *** #
 class DoctorRegisterView(CreateAPIView):
+    queryset = models.User.objects.all()
     serializer_class = serializers.DoctorRegisterSerializer
     permission_classes = (AllowAny,)
 
     # 2
-    def post(self, request):
-        # logger.info(f"Received request data: {request.data}")
-        serializer = serializers.DoctorRegisterSerializer(data=request.data)
-
-        if serializer.is_valid():
-            # Step 1: Save the user data using the serializer's create method
-            # logger.info(f"Doctor created: {doctor.email}")
-            doctor = serializer.save()
-
-            # Step 2: Send OTP to the doctor's email using the utility function
-            try:
-                # Call the email-sending function
-                utils.send_otp_for_doctor(doctor.email)
-            except SMTPRecipientsRefused as e:
-                # Handle invalid email error
-                error_messages = str(e.recipients)
-                print(f"Error sending OTP to {doctor.email}: {error_messages}")
-                raise ValidationError(
-                    {
-                        "Error": "Invald Email",
-                    }
-                )
-
-            # Step 3: Return success response
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Doctor registered successfully, and We have sent an OTP to your Email!",
-                "status_code": status_code,
-                "data": doctor,
-            }
-            return Response(
-                response,
-                status=status.HTTP_201_CREATED,
-            )
-
-        first_error_list = next(iter(serializer.errors.values()), [])
-        first_error_message = (
-            first_error_list[0] if first_error_list else "Unknown error"
-        )
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": first_error_message,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,  # Single error message
-            status=status_code,
-        )
-
-    # 1
     # def post(self, request):
-    #     serializer = self.serializer_class(data=request.data)
-    #     serializer.is_valid(raise_exception=True)
-    #     serializer.save()
-    #     status_code = status.HTTP_200_OK
+    #     # logger.info(f"Received request data: {request.data}")
+    #     serializer = serializers.DoctorRegisterSerializer(data=request.data)
+
+    #     if serializer.is_valid():
+    #         # Step 1: Save the user data using the serializer's create method
+    #         # logger.info(f"Doctor created: {doctor.email}")
+    #         doctor = serializer.save()
+
+    #         # Step 2: Send OTP to the doctor's email using the utility function
+    #         try:
+    #             # Call the email-sending function
+    #             utils.send_otp_for_doctor(doctor.email)
+    #         except SMTPRecipientsRefused as e:
+    #             # Handle invalid email error
+    #             # error_messages = str(e.recipients)
+    #             # print(f"Error sending OTP to {doctor.email}: {error_messages}")
+    #             raise ValidationError(
+    #                 {
+    #                     "Error": "Invald Email",
+    #                 }
+    #             )
+
+    #         # Step 3: Return success response
+    #         status_code = status.HTTP_200_OK
+    #         response = {
+    #             "success": "True",
+    #             "code": 0,
+    #             "message": "Doctor registered successfully, and We have sent an OTP to your Email!",
+    #             "status_code": status_code,
+    #             "data": doctor,
+    #         }
+    #         return Response(
+    #             response,
+    #             status=status.HTTP_201_CREATED,
+    #         )
+
+    #     # first_error_list = next(iter(serializer.errors.values()), [])
+    #     # first_error_message = (
+    #     #     first_error_list[0] if first_error_list else "Unknown error"
+    #     # )
+    #     status_code = status.HTTP_400_BAD_REQUEST
     #     response = {
-    #         "success": "True",
+    #         "success": "False",
+    #         "code": 1,
+    #         "message": serializer.errors,
     #         "status_code": status_code,
-    #         "message": "Doctor registered  successfully",
+    #         "data": "",
     #     }
     #     return Response(
-    #         response,
+    #         response,  # Single error message
     #         status=status_code,
     #     )
+
+    # 1
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        # print("\n\n\n\n\n\n\n\n\n")
+        # print("user", serializer.data) # user {'first_name': 'mazen', 'last_name': 'saad', 'email': 'd34@gmail.com'}
+        # print("\n\n\n\n\n\n\n\n\n")
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Doctor registered  successfully",
+            "status_code": status_code,
+            # "data": serializer,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
 
 
 # *** Doctor (Resend OTP) *** #
@@ -177,7 +185,7 @@ class DriverResendOTPView(APIView):
 
 
 # *** Doctor (Verify Account) *** #
-class DoctorVerifyEmailView(APIView):
+class DoctorVerifyAccountView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):

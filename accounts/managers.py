@@ -14,20 +14,20 @@ class UserManager(BaseUserManager):
     """
 
     # =================================================================
-    def create_user(self, email, first_name, last_name, password=None, **extra_fields):
+    def create_user(self, email, password=None, password2=None, **extra_fields):
         """
         Create and return a `User` with an email, username and password.
         """
         if not email:
             raise ValueError(_("Users Must Have an email address"))
 
-        if not first_name or not last_name:
-            raise ValueError(_("First and last names are required"))
+        # if not first_name or not last_name:
+        #     raise ValueError(_("First and last names are required"))
 
         user = self.model(
             email=self.normalize_email(email),
-            first_name=first_name,
-            last_name=last_name,
+            # first_name=first_name,
+            # last_name=last_name,
             **extra_fields,
         )
         user.set_password(password)

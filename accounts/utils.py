@@ -45,7 +45,7 @@ def send_otp_for_doctor(email):
 
         # Send OTP to driver's email
         context = {
-            "name": doctor.get_first_name(),
+            "name": doctor.first_name,
             "OTP": otp,
             "current_year": current_year,
         }

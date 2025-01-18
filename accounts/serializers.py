@@ -97,13 +97,13 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
 class DoctorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.DoctorProfile
-        fields = "__all__"
-        # fields = (
-        #     "gender",
-        #     "image",
-        #     "phone_number",
-        #     "age",
-        # )
+        # fields = "__all__"
+        fields = (
+            "gender",
+            "image",
+            "phone_number",
+            "age",
+        )
 
 
 # *** Doctor (Register) *** #
@@ -142,6 +142,9 @@ class DoctorRegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         profile_data = validated_data.pop("profile")
         user = models.User.objects.create_doctoruser(**validated_data)
+        # print("\n\n\n\n\n\n\n\n\n")
+        # print("user", user)
+        # print("\n\n\n\n\n\n\n\n\n")
         models.DoctorProfile.objects.create(
             user=user,
             gender=profile_data["gender"],

@@ -36,6 +36,7 @@ swagger_view = get_schema_view(
         license=openapi.License(name="Mazen Saad"),
     ),
     public=True,
+    # permission_classes=(AllowAny,),
 )
 
 urlpatterns = [

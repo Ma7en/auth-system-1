@@ -29,6 +29,8 @@ class User(AbstractBaseUser):
         max_length=500,
         unique=True,
     )
+    first_name = models.CharField(max_length=500)
+    last_name = models.CharField(max_length=500)
 
     username = models.CharField(max_length=300, null=True, blank=True)
     full_name = models.CharField(max_length=300, null=True, blank=True)
@@ -102,9 +104,9 @@ class AdminProfile(models.Model):
                 message="Phone must be start 010, 011, 012, 015 and all number contains 11 digits",
             )
         ],
-        unique=True,
         null=True,
         blank=True,
+        # unique=True,
     )
     age = models.PositiveIntegerField(
         null=False,
@@ -120,7 +122,7 @@ class AdminProfile(models.Model):
     #     db_table = "admin_profile"
 
     def __str__(self):
-        return f"{self.id}): ({self.phone_number})"
+        return f"{self.id}): ({self.gender})"
 
 
 # =================================================================
@@ -129,6 +131,7 @@ class DoctorProfile(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
+        related_name="doctor_profile",
     )
 
     GENDER_CHOICES = (
@@ -156,13 +159,13 @@ class DoctorProfile(models.Model):
                 message="Phone must be start 010, 011, 012, 015 and all number contains 11 digits",
             )
         ],
-        unique=True,
+        # unique=False,
         null=True,
         blank=True,
     )
     age = models.PositiveIntegerField(
-        null=False,
-        blank=False,
+        null=True,
+        blank=True,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
