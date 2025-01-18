@@ -41,7 +41,7 @@ def send_otp_for_doctor(email):
         otp = generate_otp()
 
         # Create OTP record for the driver
-        # otp_record = OneTimePassword.objects.create(driver=driver, otp=otp)
+        otp_record = models.OneTimeOTP.objects.create(user=doctor, otp=otp)
 
         # Send OTP to driver's email
         context = {
@@ -166,15 +166,11 @@ def send_otp_for_password_reset(email, user_type):
             raise ValueError(f"Passenger with email {email} not found")
 
     # Create OTP record
-    # otp_record = models.OneTimeOTP.objects.create(
-    #     otp=otp,
-    #     driver=user if user_type == "driver" else None,
-    #     passenger=user if user_type == "passenger" else None,
-    # )
+    otp_record = models.OneTimeOTP.objects.create(otp=otp, user=user)
 
     # Send OTP to the user's email
     context = {
-        "name": user.get_first_name(),
+        "name": user.first_name,
         "OTP": otp,
         "current_year": current_year,
     }

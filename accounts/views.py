@@ -7,6 +7,7 @@ from django.shortcuts import render
 from smtplib import SMTPRecipientsRefused
 from django.conf import settings
 from django.contrib.auth.hashers import check_password
+from django.utils.translation import gettext_lazy as _
 
 
 SECRET_KEY = settings.SECRET_KEY
@@ -16,9 +17,13 @@ SECRET_KEY = settings.SECRET_KEY
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.views import APIView
-from rest_framework.generics import CreateAPIView, RetrieveAPIView
+from rest_framework.generics import (
+    CreateAPIView,
+    RetrieveAPIView,
+    RetrieveUpdateAPIView,
+)
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
@@ -37,81 +42,134 @@ class DoctorRegisterView(CreateAPIView):
     permission_classes = (AllowAny,)
 
     # 2
+    def post(self, request):
+        # logger.info(f"Received request data: {request.data}")
+        serializer = serializers.DoctorRegisterSerializer(data=request.data)
+
+        if serializer.is_valid():
+            # Step 1: Save the user data using the serializer's create method
+            # logger.info(f"Doctor created: {doctor.email}")
+            doctor = serializer.save()
+            doctor_data = serializers.UserSerializer(doctor).data
+
+            # Step 2: Send OTP to the doctor's email using the utility function
+            try:
+                # Call the email-sending function
+                utils.send_otp_for_doctor(doctor.email)
+            except SMTPRecipientsRefused as e:
+                # Handle invalid email error
+                # error_messages = str(e.recipients)
+                # print(f"Error sending OTP to {doctor.email}: {error_messages}")
+                raise ValidationError(
+                    {
+                        "Error": "Invald Email",
+                    }
+                )
+
+            # Step 3: Return success response
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Doctor registered successfully, and We have sent an OTP to your Email!",
+                "status_code": status_code,
+                "data": doctor_data,
+            }
+            return Response(
+                response,
+                status=status.HTTP_201_CREATED,
+            )
+
+        # first_error_list = next(iter(serializer.errors.values()), [])
+        # first_error_message = (
+        #     first_error_list[0] if first_error_list else "Unknown error"
+        # )
+        status_code = status.HTTP_400_BAD_REQUEST
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": serializer.errors,
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,  # Single error message
+            status=status_code,
+        )
+
+    # 1
     # def post(self, request):
-    #     # logger.info(f"Received request data: {request.data}")
-    #     serializer = serializers.DoctorRegisterSerializer(data=request.data)
+    #     serializer = self.serializer_class(data=request.data)
 
-    #     if serializer.is_valid():
-    #         # Step 1: Save the user data using the serializer's create method
-    #         # logger.info(f"Doctor created: {doctor.email}")
-    #         doctor = serializer.save()
+    #     serializer.is_valid(raise_exception=True)
+    #     serializer.save()
+    #     # print("\n\n\n\n\n\n\n\n\n")
+    #     # print("user", serializer.data) # user {'first_name': 'mazen', 'last_name': 'saad', 'email': 'd34@gmail.com'}
+    #     # print("\n\n\n\n\n\n\n\n\n")
 
-    #         # Step 2: Send OTP to the doctor's email using the utility function
-    #         try:
-    #             # Call the email-sending function
-    #             utils.send_otp_for_doctor(doctor.email)
-    #         except SMTPRecipientsRefused as e:
-    #             # Handle invalid email error
-    #             # error_messages = str(e.recipients)
-    #             # print(f"Error sending OTP to {doctor.email}: {error_messages}")
-    #             raise ValidationError(
-    #                 {
-    #                     "Error": "Invald Email",
-    #                 }
-    #             )
-
-    #         # Step 3: Return success response
-    #         status_code = status.HTTP_200_OK
-    #         response = {
-    #             "success": "True",
-    #             "code": 0,
-    #             "message": "Doctor registered successfully, and We have sent an OTP to your Email!",
-    #             "status_code": status_code,
-    #             "data": doctor,
-    #         }
-    #         return Response(
-    #             response,
-    #             status=status.HTTP_201_CREATED,
-    #         )
-
-    #     # first_error_list = next(iter(serializer.errors.values()), [])
-    #     # first_error_message = (
-    #     #     first_error_list[0] if first_error_list else "Unknown error"
-    #     # )
-    #     status_code = status.HTTP_400_BAD_REQUEST
+    #     status_code = status.HTTP_200_OK
     #     response = {
-    #         "success": "False",
-    #         "code": 1,
-    #         "message": serializer.errors,
+    #         "success": "True",
+    #         "code": 0,
+    #         "message": "Doctor registered  successfully",
     #         "status_code": status_code,
-    #         "data": "",
+    #         # "data": serializer,
     #     }
     #     return Response(
-    #         response,  # Single error message
+    #         response,
     #         status=status_code,
     #     )
 
-    # 1
-    def post(self, request):
-        serializer = self.serializer_class(data=request.data)
 
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        # print("\n\n\n\n\n\n\n\n\n")
-        # print("user", serializer.data) # user {'first_name': 'mazen', 'last_name': 'saad', 'email': 'd34@gmail.com'}
-        # print("\n\n\n\n\n\n\n\n\n")
+# *** Doctor (Profile) *** #
+class DoctorProfileAPIView(RetrieveUpdateAPIView):
+    serializer_class = serializers.DoctorProfileSerializer
+    lookup_field = "passenger__id"  # This allows filtering by passenger ID
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Doctor registered  successfully",
-            "status_code": status_code,
-            # "data": serializer,
-        }
+    def get_queryset(self):
+        return models.DoctorProfile.objects.all()
+
+    def get_object(self):
+        try:
+            passenger_pk = self.kwargs["pk"]  # 1
+            passenger_profile = models.DoctorProfile.objects.get(
+                passenger__id=passenger_pk
+            )  # 1): (fowey64432@gholar.com - Passenger)
+            return passenger_profile
+        except models.DoctorProfile.DoesNotExist:
+            raise NotFound(
+                {
+                    "message": "Doctor Profile not found",
+                }
+            )
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()  # 1): (fowey64432@gholar.com - Passenger)
+        serializer = self.get_serializer(instance)
+
+        # print("\n\n\n\n\n\n\n")
+        # print("serializer", serializer)
+        # print("\n\n\n\n\n\n\n")
         return Response(
-            response,
-            status=status_code,
+            {
+                "message": "Doctor Profile retrieved successfully",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(
+            {
+                "message": "Doctor Profile updated successfully",
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
         )
 
 
@@ -283,13 +341,18 @@ class DoctorVerifyAccountView(APIView):
         # Optionally delete OTP record after successful verification
         otp.delete()
 
+        # print("\n\n\n\n\n\n")
+        # print("user", user)
+        # print("\n\n\n\n\n\n")
+        doctor_data = serializers.UserSerializer(user).data
+
         status_code = status.HTTP_200_OK
         response = {
             "success": "False",
             "code": 1,
             "message": "Email verified successfully",
             "status_code": status_code,
-            "data": user,
+            "data": doctor_data,
         }
         return Response(
             response,
@@ -331,13 +394,17 @@ class DoctorLoginView(APIView):
             access_token = refresh.access_token
 
             # Return tokens
+            # print("\n\n\n\n\n")
+            # print("doctor_data", doctor_data)
+            # print("\n\n\n\n\n")
+            doctor_data = serializers.UserSerializer(doctor).data
             status_code = status.HTTP_200_OK
             response = {
                 "success": "True",
                 "code": 0,
                 "message": "Invalid OTP Code",
                 "status_code": status_code,
-                "data": doctor,
+                "data": doctor_data,
                 "access_token": str(access_token),
                 "refresh_token": str(refresh),
             }
@@ -346,18 +413,11 @@ class DoctorLoginView(APIView):
                 status=status_code,
             )
 
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        # Get the first error message only
-        first_error_list = next(iter(serializer.errors.values()), [])
-        first_error_message = (
-            first_error_list[0] if first_error_list else "Unknown error"
-        )
-
         status_code = status.HTTP_400_BAD_REQUEST
         response = {
             "success": "False",
             "code": 1,
-            "message": first_error_message,
+            "message": serializer.errors,
             "status_code": status_code,
             "data": "",
         }
@@ -368,6 +428,7 @@ class DoctorLoginView(APIView):
 
 
 # 1
+# *** Doctor (Login) *** #
 # class DoctorLoginView(RetrieveAPIView):
 #     permission_classes = (AllowAny,)
 #     serializer_class = serializers.DoctorLoginSerializer
@@ -422,13 +483,14 @@ class DoctorChangePasswordView(APIView):
             doctor.save()
             utils.send_change_password_confirm(doctor)
 
+            doctor_data = serializers.UserSerializer(doctor).data
             status_code = status.HTTP_200_OK
             response = {
                 "success": "True",
                 "code": 0,
                 "message": "Password changed successfully.",
                 "status_code": status_code,
-                "data": doctor,
+                "data": doctor_data,
             }
             return Response(
                 response,
@@ -519,7 +581,7 @@ class DoctorLogoutView(APIView):
                 "code": 0,
                 "message": "Logout successful.",
                 "status_code": status_code,
-                "data": doctor,
+                "data": "",
             }
             return Response(
                 response,
@@ -598,7 +660,7 @@ class DoctorPasswordResetView(APIView):
                 "code": 0,
                 "message": "OTP has been sent to your email.",
                 "status_code": status_code,
-                "data": doctor,
+                "data": "",
             }
             return Response(
                 response,
@@ -619,45 +681,126 @@ class DoctorPasswordResetView(APIView):
             )
 
 
-# *** Doctor (Confirm Password) *** #
+# 1
+# *** Doctor (Confirm Reset Password) *** #
+# class DriverConfirmResetPasswordView(APIView):
+#     """
+#     This view allows a driver to reset their password after OTP verification.
+#     """
+
+#     def post(self, request):
+#         serializer = serializers.DoctorConfirmResetPasswordSerializer(data=request.data)
+#         print("\n\n\n\n\n\n")
+#         print("serializer", serializer)
+#         print("\n\n\n\n\n\n")
+
+#         if serializer.is_valid():
+#             serializer.save()
+#             status_code = status.HTTP_200_OK
+#             response = {
+#                 "success": "True",
+#                 "code": 0,
+#                 "message": "Password has been reset successfully.",
+#                 "status_code": status_code,
+#                 "data": serializer,
+#             }
+#             return Response(
+#                 response,
+#                 status=status_code,
+#             )
+
+#         status_code = status.HTTP_400_BAD_REQUEST
+#         response = {
+#             "success": "False",
+#             "code": 1,
+#             "message": serializer.errors,
+#             "status_code": status_code,
+#             "data": "",
+#         }
+#         return Response(
+#             response,  # Single error message
+#             status=status_code,
+#         )
+
+
+# 2
+# *** Doctor (Confirm Reset Password) *** #
 class DriverConfirmResetPasswordView(APIView):
     """
     This view allows a driver to reset their password after OTP verification.
     """
 
     def post(self, request):
-        serializer = serializers.DoctorResetPasswordSerializer(data=request.data)
+        otp = request.data.get("otp")
+        password = request.data.get("password")
+        password2 = request.data.get("password2")
 
-        if serializer.is_valid():
-            serializer.save()
-            status_code = status.HTTP_200_OK
+        if password != password2:
+            status_code = status.HTTP_400_BAD_REQUEST
             response = {
-                "success": "True",
-                "code": 0,
-                "message": "Password has been reset successfully.",
+                "success": "False",
+                "code": 1,
+                "message": "Passwords do not match.",
                 "status_code": status_code,
-                "data": serializer,
+                "data": "",
             }
             return Response(
                 response,
                 status=status_code,
             )
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        # Get the first error message only
-        first_error_list = next(iter(serializer.errors.values()), [])
-        first_error_message = (
-            first_error_list[0] if first_error_list else "Unknown error"
-        )
-        status_code = status.HTTP_400_BAD_REQUEST
+
+        # Validate OTP
+        try:
+            otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
+        except models.OneTimeOTP.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Invalid OTP.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        if otp_instance.is_expired():
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP has expired.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        doctor = otp_instance.user
+        password = password
+
+        doctor.set_password(password)
+        doctor.save()
+        utils.send_reset_password_confirm(doctor)
+
+        # Delete the used OTP
+        models.OneTimeOTP.objects.filter(user=doctor).delete()
+
+        doctor_data = serializers.UserSerializer(doctor).data
+        status_code = status.HTTP_200_OK
         response = {
-            "success": "False",
-            "code": 1,
-            "message": first_error_message,
+            "success": "True",
+            "code": 0,
+            "message": "Confirm Reset Password Successfully.",
             "status_code": status_code,
-            "data": "",
+            "data": doctor_data,
         }
         return Response(
-            status_code,  # Single error message
+            response,
             status=status_code,
         )
 

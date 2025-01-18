@@ -1,6 +1,7 @@
 #
 from django.contrib.auth import authenticate
 from django.utils.translation import gettext_lazy as _
+from django.http import JsonResponse
 
 
 #
@@ -28,6 +29,20 @@ class UserSerializer(serializers.ModelSerializer):
         #     "phone_number",
         #     "age",
         # )
+        extra_kwargs = {
+            "password": {
+                "write_only": True,
+            }
+        }
+
+
+# *****************************************************************
+# =================================================================
+# *** One Time OTP *** #
+class OneTimeOTPSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.OneTimeOTP
+        fields = "__all__"
 
 
 # *****************************************************************
@@ -97,18 +112,23 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
 class DoctorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.DoctorProfile
-        # fields = "__all__"
-        fields = (
-            "gender",
-            "image",
-            "phone_number",
-            "age",
-        )
+        fields = "__all__"
+        # fields = (
+        #     "gender",
+        #     "image",
+        #     "phone_number",
+        #     "age",
+        # )
+
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        response["doctor"] = UserSerializer(instance.user).data
+        return response
 
 
 # *** Doctor (Register) *** #
 class DoctorRegisterSerializer(serializers.ModelSerializer):
-    profile = DoctorProfileSerializer(required=False)
+    # profile = DoctorProfileSerializer(required=False)
     password2 = serializers.CharField(write_only=True)
 
     class Meta:
@@ -119,7 +139,7 @@ class DoctorRegisterSerializer(serializers.ModelSerializer):
             "email",
             "password",
             "password2",
-            "profile",
+            # "profile",
         )
         extra_kwargs = {
             "password": {
@@ -140,18 +160,19 @@ class DoctorRegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        profile_data = validated_data.pop("profile")
+        # profile_data = validated_data.pop("profile")
         user = models.User.objects.create_doctoruser(**validated_data)
+        # userserializer = UserSerializer(user)
         # print("\n\n\n\n\n\n\n\n\n")
         # print("user", user)
         # print("\n\n\n\n\n\n\n\n\n")
-        models.DoctorProfile.objects.create(
-            user=user,
-            gender=profile_data["gender"],
-            image=profile_data["image"],
-            phone_number=profile_data["phone_number"],
-            age=profile_data["age"],
-        )
+        # models.DoctorProfile.objects.create(
+        #     user=user,
+        #     gender=profile_data["gender"],
+        #     image=profile_data["image"],
+        #     phone_number=profile_data["phone_number"],
+        #     age=profile_data["age"],
+        # )
         return user
 
 
@@ -228,47 +249,78 @@ class DoctorLoginSerializer(serializers.Serializer):
     #     }
 
 
-# Doctor (Reset Password) *** #
-class DoctorResetPasswordSerializer(serializers.Serializer):
-    otp = serializers.CharField(max_length=6)
-    password = serializers.CharField(write_only=True)
-    password2 = serializers.CharField(write_only=True)
+# Doctor (Confirm Reset Password) *** #
+# class DoctorConfirmResetPasswordSerializer(serializers.Serializer):
+#     otp = serializers.CharField(max_length=6)
+#     password = serializers.CharField(write_only=True)
+#     password2 = serializers.CharField(write_only=True)
 
-    def validate(self, attrs):
-        otp = attrs.get("otp")
-        password = attrs.get("password")
-        password2 = attrs.get("password2")
+#     # class Meta:
+#     #     model = models.User
+#     #     fields = "__all__"
 
-        # Validate password strength
-        # validate_password(password, password2)
+#     def validate(self, attrs):
+#         otp = attrs.get("otp")
+#         password = attrs.get("password")
+#         password2 = attrs.get("password2")
 
-        # Validate OTP
-        try:
-            otp_instance = models.OneTimeOTP.objects.get(otp=otp, driver__isnull=False)
-        except models.OneTimeOTP.DoesNotExist:
-            raise ValidationError(_("Invalid OTP."))
+#         # if password != password2:
+#         #     raise serializers.ValidationError({"password": "Passwords do not match."})
 
-        if otp_instance.is_expired():
-            raise ValidationError(_("OTP has expired."))
+#         # Validate password strength
+#         # validate_password(password, password2)
 
-        return {
-            "doctor": otp_instance.doctor,
-            "password": password,
-        }
+#         # Validate OTP
+#         try:
+#             otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
+#             # print("\n\n\n\n\n")
+#             # print("otp_instance--", otp_instance)
+#             # print("\n\n\n\n\n")
+#         except models.OneTimeOTP.DoesNotExist:
+#             raise ValidationError(_("Invalid OTP."))
 
-    def save(self):
-        doctor = self.validated_data["doctor"]
-        password = self.validated_data["password"]
+#         print("\n\n\n\n\n")
+#         # otp_data = OneTimeOTPSerializer(otp_instance).data
 
-        # Set the new password
-        doctor.set_password(password)
-        doctor.save()
+#         # user = UserSerializer(otp_instance.user)
+#         # print("otp_instance", otp_instance)
+#         # # print("otp_data", otp_data)
+#         # print("user", user)
+#         print("\n\n\n\n\n")
 
-        utils.send_reset_password_confirm(doctor)
-        # Delete the used OTP
-        models.OneTimeOTP.objects.filter(doctor=doctor).delete()
+#         if otp_instance.is_expired():
+#             raise ValidationError(_("OTP has expired."))
 
-        return doctor
+#         return {
+#             # "doctor": otp_instance.doctor,
+#             "doctor": otp_instance.user,
+#             "password": password,
+#         }
+
+#     def save(self):
+#         doctor = self.validated_data["doctor"]
+#         password = self.validated_data["password"]
+
+#         # Set the new password
+#         doctor.set_password(password)
+#         doctor.save()
+
+#         utils.send_reset_password_confirm(doctor)
+#         # Delete the used OTP
+#         # models.OneTimeOTP.objects.filter(user=doctor).delete()
+
+#         print("\n\n\n\n\n\n")
+#         print("doctor---", doctor)
+#         doctor_data = UserSerializer(doctor).data
+#         print("\n\n\n\n\n\n")
+#         print("doctor_data---", type(doctor_data))
+#         print("\n\n\n\n\n\n")
+
+#         return doctor_data
+#         # return {
+#         #     "email": doctor,
+#         #     "message": "Password reset successful",
+#         # }
 
 
 # *****************************************************************

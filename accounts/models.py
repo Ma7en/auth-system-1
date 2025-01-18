@@ -10,6 +10,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import RegexValidator
+from django.db.models.signals import post_save
 
 
 #
@@ -25,7 +26,7 @@ class User(AbstractBaseUser):
     #     editable=False,
     # )
     email = models.EmailField(
-        verbose_name="email address",
+        # verbose_name="email address",
         max_length=500,
         unique=True,
     )
@@ -57,6 +58,8 @@ class User(AbstractBaseUser):
     def save(self, *args, **kwargs):
         # email_username, mobile = self.email.split("@")
         email_username, _ = self.email.split("@")
+        if self.first_name and self.last_name:
+            self.full_name = self.first_name + " " + self.last_name
         if self.full_name == "" or self.full_name == None:
             self.full_name = email_username
         if self.username == "" or self.username == None:
@@ -180,6 +183,19 @@ class DoctorProfile(models.Model):
         return f"{self.id}): ({self.phone_number})"
 
 
+def create_user_doctor_profile(sender, instance, created, **kwargs):
+    if created:
+        DoctorProfile.objects.create(user=instance)
+
+
+def save_user_doctor_profile(sender, instance, **kwargs):
+    instance.doctor_profile.save()
+
+
+post_save.connect(create_user_doctor_profile, sender=User)
+post_save.connect(save_user_doctor_profile, sender=User)
+
+
 # =================================================================
 # *** Staff Profile *** #
 class StaffProfile(models.Model):
@@ -292,19 +308,19 @@ class PaitentProfile(models.Model):
 # ================================================================
 # *** (Verify Account) *** #
 class OneTimeOTP(models.Model):
-    otp = models.CharField(max_length=6)
-    token = models.UUIDField(
-        default=uuid.uuid4,
-        editable=False,
-        unique=True,
-    )
-
     # Separate foreign keys for User
     user = models.ForeignKey(
         User,
         null=True,
         blank=True,
         on_delete=models.CASCADE,
+    )
+
+    otp = models.CharField(max_length=6)
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
