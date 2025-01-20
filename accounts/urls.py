@@ -20,7 +20,13 @@ urlpatterns = [
         views.DoctorRegisterView.as_view(),
         name="doctor-register-api",
     ),
-    #
+    # (Profile)
+    path(
+        "doctor/profile/<int:pk>/",
+        views.DoctorProfileView.as_view(),
+        name="doctor-profile-id",
+    ),
+    # (Resend OTP)
     path(
         "doctor/resend-otp/",
         views.DriverResendOTPView.as_view(),
@@ -37,6 +43,18 @@ urlpatterns = [
         "doctor/login/",
         views.DoctorLoginView.as_view(),
         name="doctor-login-api",
+    ),
+    # (ID)
+    path(
+        "doctor/<int:pk>/",
+        views.DoctorIDView.as_view(),
+        name="doctor-user-id",
+    ),
+    # (Refresh)
+    path(
+        "doctor/refresh/",
+        views.DoctorRefreshView.as_view(),
+        name="doctor-user-refresh",
     ),
     # (Change Password)
     path(

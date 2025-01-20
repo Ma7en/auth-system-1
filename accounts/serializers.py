@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.exceptions import ValidationError
 
+
 #
 from accounts import models
 from accounts import utils
@@ -23,12 +24,6 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.User
         fields = "__all__"
-        # fields = (
-        #     "gender",
-        #     "image",
-        #     "phone_number",
-        #     "age",
-        # )
         extra_kwargs = {
             "password": {
                 "write_only": True,
@@ -52,12 +47,6 @@ class AdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.AdminProfile
         fields = "__all__"
-        # fields = (
-        #     "gender",
-        #     "image",
-        #     "phone_number",
-        #     "age",
-        # )
 
 
 # *** Admin Register *** #
@@ -391,12 +380,6 @@ class PaitentProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.PaitentProfile
         fields = "__all__"
-        # fields = (
-        #     "gender",
-        #     "image",
-        #     "phone_number",
-        #     "age",
-        # )
 
 
 # *** Paitent Register *** #

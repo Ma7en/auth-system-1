@@ -19,11 +19,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.views import APIView
-from rest_framework.generics import (
-    CreateAPIView,
-    RetrieveAPIView,
-    RetrieveUpdateAPIView,
-)
+from rest_framework import generics
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
@@ -36,7 +32,7 @@ from accounts import utils
 # *****************************************************************
 # =================================================================
 # *** Doctor (Register) *** #
-class DoctorRegisterView(CreateAPIView):
+class DoctorRegisterView(generics.CreateAPIView):
     queryset = models.User.objects.all()
     serializer_class = serializers.DoctorRegisterSerializer
     permission_classes = (AllowAny,)
@@ -122,40 +118,46 @@ class DoctorRegisterView(CreateAPIView):
 
 
 # *** Doctor (Profile) *** #
-class DoctorProfileAPIView(RetrieveUpdateAPIView):
+class DoctorProfileView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = serializers.DoctorProfileSerializer
-    lookup_field = "passenger__id"  # This allows filtering by passenger ID
+    # lookup_field = "passenger__id"  # This allows filtering by passenger ID
 
     def get_queryset(self):
         return models.DoctorProfile.objects.all()
 
     def get_object(self):
         try:
-            passenger_pk = self.kwargs["pk"]  # 1
-            passenger_profile = models.DoctorProfile.objects.get(
-                passenger__id=passenger_pk
-            )  # 1): (fowey64432@gholar.com - Passenger)
-            return passenger_profile
+            doctor_pk = self.kwargs["pk"]  # 1
+            doctor_profile = models.DoctorProfile.objects.get(user=doctor_pk)
+            return doctor_profile
         except models.DoctorProfile.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
             raise NotFound(
                 {
+                    "success": "False",
+                    "code": 1,
                     "message": "Doctor Profile not found",
+                    "status_code": status_code,
+                    "data": "",
                 }
             )
 
     def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()  # 1): (fowey64432@gholar.com - Passenger)
+        instance = self.get_object()
         serializer = self.get_serializer(instance)
+        doctor_data = serializer.data
 
-        # print("\n\n\n\n\n\n\n")
-        # print("serializer", serializer)
-        # print("\n\n\n\n\n\n\n")
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Doctor Profile retrieved successfully",
+            "status_code": status_code,
+            "data": doctor_data,
+        }
         return Response(
-            {
-                "message": "Doctor Profile retrieved successfully",
-                "data": serializer.data,
-            },
-            status=status.HTTP_200_OK,
+            response,
+            status=status_code,
         )
 
     def update(self, request, *args, **kwargs):
@@ -164,12 +166,19 @@ class DoctorProfileAPIView(RetrieveUpdateAPIView):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+
+        doctor_data = serializer.data
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Doctor Profile updated successfully",
+            "status_code": status_code,
+            "data": doctor_data,
+        }
         return Response(
-            {
-                "message": "Doctor Profile updated successfully",
-                "data": serializer.data,
-            },
-            status=status.HTTP_200_OK,
+            response,
+            status=status_code,
         )
 
 
@@ -450,6 +459,137 @@ class DoctorLoginView(APIView):
 #             response,
 #             status=status_code,
 #         )
+
+
+# *** Doctor (ID) *** #
+class DoctorIDView(APIView):
+    def get(self, request, pk):
+        try:
+            # البحث عن السائق باستخدام المعرف (pk)
+            doctor = models.User.objects.get(pk=pk)
+        except models.User.DoesNotExist:
+            # raise NotFound(
+            #     {
+            #         "message": "Doctor not found.",
+            #     }
+            # )
+            status_code = status.HTTP_404_NOT_FOUND
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Doctor not found.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # تحويل الكائن إلى JSON باستخدام Serializer
+        doctor_data = serializers.UserSerializer(doctor).data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Doctor retrieved successfully.",
+            "status_code": status_code,
+            "data": doctor_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Doctor (Refresh) *** #
+class DoctorRefreshView(APIView):
+    def post(self, request):
+        try:
+            # Retrieve and decode the refresh token
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                # raise ValidationError(
+                #     {
+                #         "refresh_token": "This field is required.",
+                #     }
+                # )
+                status_code = status.HTTP_404_NOT_FOUND
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": {
+                        "refresh_token": "This field is required.",
+                    },
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Decode the JWT token
+            payload = jwt.decode(
+                refresh_token, SECRET_KEY, algorithms=["HS256"]
+            )  # {'token_type': 'refresh', 'exp': 1737402322, 'iat': 1737315922, 'jti': '626f3935d64e4ebcbfcb53d54041f2ab', 'user_id': 1, 'doctor_id': 1}
+
+            # Retrieve user_id from the token payload
+            user_id = payload.get("user_id")
+            if not user_id:
+                raise ValidationError(
+                    {
+                        "refresh_token": "Invalid token payload.",
+                    }
+                )
+
+            # Fetch the Driver object
+            doctor = models.User.objects.get(id=user_id)
+
+            # Serialize the Driver object
+            doctor_data = serializers.UserSerializer(doctor).data
+
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Doctor retrieved successfully.",
+                "status_code": status_code,
+                "data": doctor_data,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        except models.User.DoesNotExist:
+            raise ValidationError(
+                {
+                    "message": "Driver not found.",
+                }
+            )
+
+        except jwt.ExpiredSignatureError:
+            raise ValidationError(
+                {
+                    "message": "Refresh token has expired.",
+                }
+            )
+
+        except jwt.InvalidTokenError:
+            raise ValidationError(
+                {
+                    "message": "Invalid refresh token.",
+                }
+            )
+
+        except Exception as e:
+            raise ValidationError(
+                {
+                    "message": str(e),
+                }
+            )
 
 
 # *** Doctor (Change Password) *** #

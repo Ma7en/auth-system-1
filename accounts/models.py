@@ -4,6 +4,7 @@ import uuid
 #
 from datetime import timedelta
 
+
 #
 from django.utils import timezone
 from django.db import models
@@ -20,11 +21,6 @@ from .managers import UserManager
 # =================================================================
 # *** User *** #
 class User(AbstractBaseUser):
-    # id = models.UUIDField(
-    #     primary_key=True,
-    #     default=uuid.uuid4,
-    #     editable=False,
-    # )
     email = models.EmailField(
         # verbose_name="email address",
         max_length=500,
@@ -33,8 +29,16 @@ class User(AbstractBaseUser):
     first_name = models.CharField(max_length=500)
     last_name = models.CharField(max_length=500)
 
-    username = models.CharField(max_length=300, null=True, blank=True)
-    full_name = models.CharField(max_length=300, null=True, blank=True)
+    username = models.CharField(
+        max_length=300,
+        null=True,
+        blank=True,
+    )
+    full_name = models.CharField(
+        max_length=300,
+        null=True,
+        blank=True,
+    )
 
     is_superuser = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
@@ -48,15 +52,12 @@ class User(AbstractBaseUser):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["first_name", "last_name"]
 
-    # Tells Django that the UserManager class defined above should manage
-    # objects of this type.
     objects = UserManager()
 
     def __str__(self):
         return f"{self.id}): ({self.email})"
 
     def save(self, *args, **kwargs):
-        # email_username, mobile = self.email.split("@")
         email_username, _ = self.email.split("@")
         if self.first_name and self.last_name:
             self.full_name = self.first_name + " " + self.last_name
@@ -71,11 +72,6 @@ class User(AbstractBaseUser):
 # =================================================================
 # *** Admin Profile  *** #
 class AdminProfile(models.Model):
-    # id = models.UUIDField(
-    #     primary_key=True,
-    #     default=uuid.uuid4,
-    #     editable=False,
-    # )
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
@@ -109,7 +105,6 @@ class AdminProfile(models.Model):
         ],
         null=True,
         blank=True,
-        # unique=True,
     )
     age = models.PositiveIntegerField(
         null=False,
@@ -162,7 +157,6 @@ class DoctorProfile(models.Model):
                 message="Phone must be start 010, 011, 012, 015 and all number contains 11 digits",
             )
         ],
-        # unique=False,
         null=True,
         blank=True,
     )
@@ -180,7 +174,9 @@ class DoctorProfile(models.Model):
     #     db_table = "doctor_profile"
 
     def __str__(self):
-        return f"{self.id}): ({self.phone_number})"
+        return (
+            f"{self.id}): (Profile: {self.user.email}) - (Phone: {self.phone_number})"
+        )
 
 
 def create_user_doctor_profile(sender, instance, created, **kwargs):
@@ -308,7 +304,6 @@ class PaitentProfile(models.Model):
 # ================================================================
 # *** (Verify Account) *** #
 class OneTimeOTP(models.Model):
-    # Separate foreign keys for User
     user = models.ForeignKey(
         User,
         null=True,
