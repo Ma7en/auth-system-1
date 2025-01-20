@@ -37,14 +37,11 @@ class DoctorRegisterView(generics.CreateAPIView):
     serializer_class = serializers.DoctorRegisterSerializer
     permission_classes = (AllowAny,)
 
-    # 2
     def post(self, request):
-        # logger.info(f"Received request data: {request.data}")
         serializer = serializers.DoctorRegisterSerializer(data=request.data)
 
         if serializer.is_valid():
             # Step 1: Save the user data using the serializer's create method
-            # logger.info(f"Doctor created: {doctor.email}")
             doctor = serializer.save()
             doctor_data = serializers.UserSerializer(doctor).data
 
@@ -76,10 +73,6 @@ class DoctorRegisterView(generics.CreateAPIView):
                 status=status.HTTP_201_CREATED,
             )
 
-        # first_error_list = next(iter(serializer.errors.values()), [])
-        # first_error_message = (
-        #     first_error_list[0] if first_error_list else "Unknown error"
-        # )
         status_code = status.HTTP_400_BAD_REQUEST
         response = {
             "success": "False",
@@ -89,38 +82,14 @@ class DoctorRegisterView(generics.CreateAPIView):
             "data": "",
         }
         return Response(
-            response,  # Single error message
+            response,
             status=status_code,
         )
-
-    # 1
-    # def post(self, request):
-    #     serializer = self.serializer_class(data=request.data)
-
-    #     serializer.is_valid(raise_exception=True)
-    #     serializer.save()
-    #     # print("\n\n\n\n\n\n\n\n\n")
-    #     # print("user", serializer.data) # user {'first_name': 'mazen', 'last_name': 'saad', 'email': 'd34@gmail.com'}
-    #     # print("\n\n\n\n\n\n\n\n\n")
-
-    #     status_code = status.HTTP_200_OK
-    #     response = {
-    #         "success": "True",
-    #         "code": 0,
-    #         "message": "Doctor registered  successfully",
-    #         "status_code": status_code,
-    #         # "data": serializer,
-    #     }
-    #     return Response(
-    #         response,
-    #         status=status_code,
-    #     )
 
 
 # *** Doctor (Profile) *** #
 class DoctorProfileView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = serializers.DoctorProfileSerializer
-    # lookup_field = "passenger__id"  # This allows filtering by passenger ID
 
     def get_queryset(self):
         return models.DoctorProfile.objects.all()
@@ -183,7 +152,7 @@ class DoctorProfileView(generics.RetrieveUpdateDestroyAPIView):
 
 
 # *** Doctor (Resend OTP) *** #
-class DriverResendOTPView(APIView):
+class DoctorResendOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -207,7 +176,7 @@ class DriverResendOTPView(APIView):
         try:
             user = models.User.objects.get(email=email)
 
-            # Check if the driver is already verified
+            # Check if the doctor is already verified
             if user.is_verified:
                 status_code = status.HTTP_403_FORBIDDEN
                 response = {
@@ -350,9 +319,6 @@ class DoctorVerifyAccountView(APIView):
         # Optionally delete OTP record after successful verification
         otp.delete()
 
-        # print("\n\n\n\n\n\n")
-        # print("user", user)
-        # print("\n\n\n\n\n\n")
         doctor_data = serializers.UserSerializer(user).data
 
         status_code = status.HTTP_200_OK
@@ -370,10 +336,9 @@ class DoctorVerifyAccountView(APIView):
 
 
 # *** Doctor (Login) *** #
-# 2
 class DoctorLoginView(APIView):
     def post(self, request):
-        # Deserialize the driver login data
+        # Deserialize the doctor login data
         serializer = serializers.DoctorLoginSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -402,10 +367,6 @@ class DoctorLoginView(APIView):
             # Generate access token
             access_token = refresh.access_token
 
-            # Return tokens
-            # print("\n\n\n\n\n")
-            # print("doctor_data", doctor_data)
-            # print("\n\n\n\n\n")
             doctor_data = serializers.UserSerializer(doctor).data
             status_code = status.HTTP_200_OK
             response = {
@@ -431,34 +392,9 @@ class DoctorLoginView(APIView):
             "data": "",
         }
         return Response(
-            response,  # Single error message
+            response,
             status=status_code,
         )
-
-
-# 1
-# *** Doctor (Login) *** #
-# class DoctorLoginView(RetrieveAPIView):
-#     permission_classes = (AllowAny,)
-#     serializer_class = serializers.DoctorLoginSerializer
-
-#     def post(self, request):
-#         serializer = self.serializer_class(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-
-#         status_code = status.HTTP_200_OK
-#         response = {
-#             "success": "True",
-#             "code": 0,
-#             "status_code": status_code,
-#             "message": "User logged in Successfully",
-#             "data": serializer,
-#             "token": serializer.data["token"],
-#         }
-#         return Response(
-#             response,
-#             status=status_code,
-#         )
 
 
 # *** Doctor (ID) *** #
@@ -468,11 +404,6 @@ class DoctorIDView(APIView):
             # البحث عن السائق باستخدام المعرف (pk)
             doctor = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
-            # raise NotFound(
-            #     {
-            #         "message": "Doctor not found.",
-            #     }
-            # )
             status_code = status.HTTP_404_NOT_FOUND
             response = {
                 "success": "False",
@@ -510,11 +441,6 @@ class DoctorRefreshView(APIView):
             # Retrieve and decode the refresh token
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                # raise ValidationError(
-                #     {
-                #         "refresh_token": "This field is required.",
-                #     }
-                # )
                 status_code = status.HTTP_404_NOT_FOUND
                 response = {
                     "success": "False",
@@ -617,7 +543,9 @@ class DoctorChangePasswordView(APIView):
             # Validate new passwords
             new_password = request.data.get("new_password")
             confirm_password = request.data.get("confirm_password")
+
             # validate_password(new_password, confirm_password)
+
             # Change password
             doctor.set_password(new_password)
             doctor.save()
@@ -712,7 +640,7 @@ class DoctorLogoutView(APIView):
                     status=status_code,
                 )
 
-            # Expire the token (logout the driver)
+            # Expire the token (logout the doctor)
             token.set_exp()
 
             status_code = status.HTTP_200_OK
@@ -821,53 +749,10 @@ class DoctorPasswordResetView(APIView):
             )
 
 
-# 1
 # *** Doctor (Confirm Reset Password) *** #
-# class DriverConfirmResetPasswordView(APIView):
-#     """
-#     This view allows a driver to reset their password after OTP verification.
-#     """
-
-#     def post(self, request):
-#         serializer = serializers.DoctorConfirmResetPasswordSerializer(data=request.data)
-#         print("\n\n\n\n\n\n")
-#         print("serializer", serializer)
-#         print("\n\n\n\n\n\n")
-
-#         if serializer.is_valid():
-#             serializer.save()
-#             status_code = status.HTTP_200_OK
-#             response = {
-#                 "success": "True",
-#                 "code": 0,
-#                 "message": "Password has been reset successfully.",
-#                 "status_code": status_code,
-#                 "data": serializer,
-#             }
-#             return Response(
-#                 response,
-#                 status=status_code,
-#             )
-
-#         status_code = status.HTTP_400_BAD_REQUEST
-#         response = {
-#             "success": "False",
-#             "code": 1,
-#             "message": serializer.errors,
-#             "status_code": status_code,
-#             "data": "",
-#         }
-#         return Response(
-#             response,  # Single error message
-#             status=status_code,
-#         )
-
-
-# 2
-# *** Doctor (Confirm Reset Password) *** #
-class DriverConfirmResetPasswordView(APIView):
+class DoctorConfirmResetPasswordView(APIView):
     """
-    This view allows a driver to reset their password after OTP verification.
+    This view allows a doctor to reset their password after OTP verification.
     """
 
     def post(self, request):

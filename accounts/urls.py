@@ -29,7 +29,7 @@ urlpatterns = [
     # (Resend OTP)
     path(
         "doctor/resend-otp/",
-        views.DriverResendOTPView.as_view(),
+        views.DoctorResendOTPView.as_view(),
         name="doctor-resend-otp-api",
     ),
     # (Verify Account)
@@ -77,7 +77,7 @@ urlpatterns = [
     # (Confirm Reset Password)
     path(
         "doctor/confirm-reset-password/",
-        views.DriverConfirmResetPasswordView.as_view(),
+        views.DoctorConfirmResetPasswordView.as_view(),
         name="doctor-confirm-reset-password",
     ),
     # (Token Refreshing)

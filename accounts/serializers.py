@@ -102,12 +102,6 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.DoctorProfile
         fields = "__all__"
-        # fields = (
-        #     "gender",
-        #     "image",
-        #     "phone_number",
-        #     "age",
-        # )
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
@@ -117,7 +111,6 @@ class DoctorProfileSerializer(serializers.ModelSerializer):
 
 # *** Doctor (Register) *** #
 class DoctorRegisterSerializer(serializers.ModelSerializer):
-    # profile = DoctorProfileSerializer(required=False)
     password2 = serializers.CharField(write_only=True)
 
     class Meta:
@@ -149,19 +142,7 @@ class DoctorRegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        # profile_data = validated_data.pop("profile")
         user = models.User.objects.create_doctoruser(**validated_data)
-        # userserializer = UserSerializer(user)
-        # print("\n\n\n\n\n\n\n\n\n")
-        # print("user", user)
-        # print("\n\n\n\n\n\n\n\n\n")
-        # models.DoctorProfile.objects.create(
-        #     user=user,
-        #     gender=profile_data["gender"],
-        #     image=profile_data["image"],
-        #     phone_number=profile_data["phone_number"],
-        #     age=profile_data["age"],
-        # )
         return user
 
 
@@ -187,7 +168,6 @@ class DoctorLoginSerializer(serializers.Serializer):
     email = serializers.CharField(max_length=500)
     password = serializers.CharField(write_only=True)
 
-    # 2
     def validate(self, attrs):
         email = attrs.get("email")
         password = attrs.get("password")
@@ -207,109 +187,6 @@ class DoctorLoginSerializer(serializers.Serializer):
             raise AuthenticationFailed(_("doctor account is deactivated."))
 
         return doctor
-
-    # 1
-    # def validate(self, data):
-    #     # if not data.get("email"):
-    #     #     return False
-
-    #     # if not data.get("password"):
-    #     #     return False
-
-    #     email = data.get("email", None)
-    #     password = data.get("password", None)
-    #     user = authenticate(email=email, password=password)
-    #     if user is None:
-    #         raise serializers.ValidationError(
-    #             _("A user with this email and password is not found.")
-    #         )
-
-    #     try:
-    #         payload = JWT_PAYLOAD_HANDLER(user)
-    #         jwt_token = JWT_ENCODE_HANDLER(payload)
-    #         update_last_login(None, user)
-    #     except User.DoesNotExist:
-    #         raise serializers.ValidationError(
-    #             "User with given email and password does not exists"
-    #         )
-    #     return {
-    #         "email": user.email,
-    #         "token": jwt_token,
-    #     }
-
-
-# Doctor (Confirm Reset Password) *** #
-# class DoctorConfirmResetPasswordSerializer(serializers.Serializer):
-#     otp = serializers.CharField(max_length=6)
-#     password = serializers.CharField(write_only=True)
-#     password2 = serializers.CharField(write_only=True)
-
-#     # class Meta:
-#     #     model = models.User
-#     #     fields = "__all__"
-
-#     def validate(self, attrs):
-#         otp = attrs.get("otp")
-#         password = attrs.get("password")
-#         password2 = attrs.get("password2")
-
-#         # if password != password2:
-#         #     raise serializers.ValidationError({"password": "Passwords do not match."})
-
-#         # Validate password strength
-#         # validate_password(password, password2)
-
-#         # Validate OTP
-#         try:
-#             otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
-#             # print("\n\n\n\n\n")
-#             # print("otp_instance--", otp_instance)
-#             # print("\n\n\n\n\n")
-#         except models.OneTimeOTP.DoesNotExist:
-#             raise ValidationError(_("Invalid OTP."))
-
-#         print("\n\n\n\n\n")
-#         # otp_data = OneTimeOTPSerializer(otp_instance).data
-
-#         # user = UserSerializer(otp_instance.user)
-#         # print("otp_instance", otp_instance)
-#         # # print("otp_data", otp_data)
-#         # print("user", user)
-#         print("\n\n\n\n\n")
-
-#         if otp_instance.is_expired():
-#             raise ValidationError(_("OTP has expired."))
-
-#         return {
-#             # "doctor": otp_instance.doctor,
-#             "doctor": otp_instance.user,
-#             "password": password,
-#         }
-
-#     def save(self):
-#         doctor = self.validated_data["doctor"]
-#         password = self.validated_data["password"]
-
-#         # Set the new password
-#         doctor.set_password(password)
-#         doctor.save()
-
-#         utils.send_reset_password_confirm(doctor)
-#         # Delete the used OTP
-#         # models.OneTimeOTP.objects.filter(user=doctor).delete()
-
-#         print("\n\n\n\n\n\n")
-#         print("doctor---", doctor)
-#         doctor_data = UserSerializer(doctor).data
-#         print("\n\n\n\n\n\n")
-#         print("doctor_data---", type(doctor_data))
-#         print("\n\n\n\n\n\n")
-
-#         return doctor_data
-#         # return {
-#         #     "email": doctor,
-#         #     "message": "Password reset successful",
-#         # }
 
 
 # *****************************************************************
