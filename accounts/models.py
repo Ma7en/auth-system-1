@@ -75,7 +75,7 @@ class AdminProfile(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        # related_name="doctor_profile",
+        related_name="admin_profile",
     )
 
     GENDER_CHOICES = (
@@ -107,8 +107,8 @@ class AdminProfile(models.Model):
         blank=True,
     )
     age = models.PositiveIntegerField(
-        null=False,
-        blank=False,
+        null=True,
+        blank=True,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -211,6 +211,7 @@ class StaffProfile(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
+        related_name="staff_profile",
     )
 
     GENDER_CHOICES = (
@@ -242,8 +243,8 @@ class StaffProfile(models.Model):
         blank=True,
     )
     age = models.PositiveIntegerField(
-        null=False,
-        blank=False,
+        null=True,
+        blank=True,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -277,6 +278,7 @@ class PaitentProfile(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
+        related_name="paitent_profile",
     )
 
     GENDER_CHOICES = (
@@ -309,8 +311,8 @@ class PaitentProfile(models.Model):
     )
 
     age = models.PositiveIntegerField(
-        null=False,
-        blank=False,
+        null=True,
+        blank=True,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -352,7 +354,7 @@ class OneTimeOTP(models.Model):
     token = models.UUIDField(
         default=uuid.uuid4,
         editable=False,
-        unique=True,
+        # unique=True,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

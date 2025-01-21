@@ -23,11 +23,14 @@ from accounts import models
 logger = logging.getLogger(__name__)
 
 
+# *****************************************************************
 # ================================================================
 current_year = now().year
 
 
+# *****************************************************************
 # ================================================================
+# *** Generate OTP *** #
 def generate_otp():
     return str(random.randint(100000, 999999))  # Generates a 6-digit OTP
 
@@ -73,53 +76,6 @@ def send_otp_for_doctor(email):
         raise ValueError(_(f"Error sending OTP to driver {email}: {str(e)}"))
 
 
-# # ================================================================
-# def send_otp_for_passenger(email):
-#     try:
-#         # Find the Passenger by email
-#         passenger = Passenger.objects.get(email=email)
-
-#         # Generate OTP
-#         otp = generate_otp()
-
-#         # Create OTP record for the passenger
-#         otp_record = OneTimePassword.objects.create(passenger=passenger, otp=otp)
-
-#         # Send OTP to the Passenger's email
-#         context = {
-#             "name": passenger.get_full_name(),
-#             "OTP": otp,
-#             "current_year": current_year,
-#         }
-#         subject = "Passenger Confirmation Email"
-#         template = (
-#             "index.html"  # Update this with the appropriate template for passengers
-#         )
-#         html_content = render_to_string(template, context)
-#         plain_message = strip_tags(html_content)
-
-#         try:
-#             send_mail(
-#                 subject,
-#                 plain_message,
-#                 settings.EMAIL_HOST_USER,
-#                 [passenger.email],
-#                 html_message=html_content,
-#                 fail_silently=False,
-#             )
-#         except Exception as e:
-#             print(f"Error sending email: {e}")
-
-#         logger.info(f"OTP sent to passenger {passenger.email}. OTP: {otp}")
-
-#     except Passenger.DoesNotExist:
-#         logger.error(f"Passenger with email {email} not found.")
-#         raise ValueError(f"Passenger with email {email} does not exist")
-#     except Exception as e:
-#         logger.error(f"Error sending OTP to passenger {email}: {str(e)}")
-#         raise
-
-
 # *****************************************************************
 # ================================================================
 # *** Send Verification Email ***#
@@ -149,6 +105,7 @@ def send_verification_email(user, otp):
     )
 
 
+# *****************************************************************
 # # ================================================================
 # *** Send OTP For Password Reset ***#
 def send_otp_for_password_reset(email, user_type):
@@ -192,7 +149,9 @@ def send_otp_for_password_reset(email, user_type):
     # return otp_record  # Optionally return OTP for debugging/logging purposes
 
 
+# ******************************************************************
 # # ================================================================
+# *** Send Reset Password Confirm *** #
 def send_reset_password_confirm(user):
     subject = "Reset Password Confirmation"
     plain_message = (
@@ -220,7 +179,9 @@ def send_reset_password_confirm(user):
     )
 
 
-# # ================================================================
+# ****************************************************************
+# ================================================================
+# *** Send Change Password Confirm ***#
 def send_change_password_confirm(user):
     subject = "Change Password Confirmation"
     plain_message = (
@@ -248,9 +209,34 @@ def send_change_password_confirm(user):
     )
 
 
+# ****************************************************************
 # ================================================================
+# *** Return Response ***#
+def FunReturn(code, message, status, data=""):
+    if code == 0:
+        success = "True"
+    elif code == 1:
+        success = "False"
+
+    response = {
+        "success": success,
+        "code": code,
+        "message": message,
+        "status_code": status,
+        "data": data,
+    }
+    return Response(
+        response,
+        status=status,
+    )
 
 
+# ****************************************************************
+# ================================================================
+# ***  ***#
+
+
+# ****************************************************************
 # ================================================================
 
 """

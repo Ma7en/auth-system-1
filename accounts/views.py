@@ -401,37 +401,57 @@ class AdminLoginView(APIView):
 class AdminIDView(APIView):
     def get(self, request, pk):
         try:
-            # البحث عن السائق باستخدام المعرف (pk)
             admin = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
-            status_code = status.HTTP_404_NOT_FOUND
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Admin not found.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Admin not found."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
             )
+            # status_code = status.HTTP_404_NOT_FOUND
+            # response = {
+            #     "success": "False",
+            #     "code": 1,
+            #     "message": "Admin not found.",
+            #     "status_code": status_code,
+            #     "data": "",
+            # }
+            # return Response(
+            #     response,
+            #     status=status_code,
+            # )
 
         # تحويل الكائن إلى JSON باستخدام Serializer
         admin_data = serializers.UserSerializer(admin).data
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Admin retrieved successfully.",
-            "status_code": status_code,
-            "data": admin_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        if admin_data["is_admin"] == False:
+            message = "Admin whit this id is not Found"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
+
+        message = "Admin retrieved successfully."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            admin_data,
         )
+        # status_code = status.HTTP_200_OK
+        # response = {
+        #     "success": "True",
+        #     "code": 0,
+        #     "message": "Admin retrieved successfully.",
+        #     "status_code": status_code,
+        #     "data": admin_data,
+        # }
+        # return Response(
+        #     response,
+        #     status=status_code,
+        # )
 
 
 # *** Admin (Refresh) *** #
@@ -1202,37 +1222,46 @@ class DoctorLoginView(APIView):
 class DoctorIDView(APIView):
     def get(self, request, pk):
         try:
-            # البحث عن السائق باستخدام المعرف (pk)
             doctor = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
-            status_code = status.HTTP_404_NOT_FOUND
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Doctor not found.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
-            )
+            message = "Doctor not found."
+            return utils.FunReturn(1, message, status.HTTP_404_NOT_FOUND)
+
+            # status_code = status.HTTP_404_NOT_FOUND
+            # response = {
+            #     "success": "False",
+            #     "code": 1,
+            #     "message": "Doctor not found.",
+            #     "status_code": status_code,
+            #     "data": "",
+            # }
+            # return Response(
+            #     response,
+            #     status=status_code,
+            # )
 
         # تحويل الكائن إلى JSON باستخدام Serializer
         doctor_data = serializers.UserSerializer(doctor).data
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Doctor retrieved successfully.",
-            "status_code": status_code,
-            "data": doctor_data,
-        }
-        return Response(
-            response,
-            status=status_code,
-        )
+        if doctor_data["is_doctor"] == False:
+            message = "Doctor with this Id is not Found."
+            return utils.FunReturn(1, message, status.HTTP_404_NOT_FOUND)
+
+        message = "Doctor retrieved successfully."
+        return utils.FunReturn(0, message, status.HTTP_200_OK, doctor_data)
+
+        # status_code = status.HTTP_200_OK
+        # response = {
+        #     "success": "True",
+        #     "code": 0,
+        #     "message": "Doctor retrieved successfully.",
+        #     "status_code": status_code,
+        #     "data": doctor_data,
+        # }
+        # return Response(
+        #     response,
+        #     status=status_code,
+        # )
 
 
 # *** Doctor (Refresh) *** #
@@ -2004,7 +2033,6 @@ class StaffLoginView(APIView):
 class StaffIDView(APIView):
     def get(self, request, pk):
         try:
-            # البحث عن السائق باستخدام المعرف (pk)
             staff = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
             status_code = status.HTTP_404_NOT_FOUND
@@ -2021,7 +2049,11 @@ class StaffIDView(APIView):
             )
 
         # تحويل الكائن إلى JSON باستخدام Serializer
-        admin_data = serializers.UserSerializer(staff).data
+        staff_data = serializers.UserSerializer(staff).data
+
+        if staff_data["is_staff"] == False:
+            message = "Staff with this Id is not Found."
+            return utils.FunReturn(1, message, status.HTTP_404_NOT_FOUND)
 
         status_code = status.HTTP_200_OK
         response = {
@@ -2029,7 +2061,7 @@ class StaffIDView(APIView):
             "code": 0,
             "message": "Staff retrieved successfully.",
             "status_code": status_code,
-            "data": admin_data,
+            "data": staff_data,
         }
         return Response(
             response,
@@ -2806,7 +2838,6 @@ class PaitentLoginView(APIView):
 class PaitentIDView(APIView):
     def get(self, request, pk):
         try:
-            # البحث عن السائق باستخدام المعرف (pk)
             paitent = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
             status_code = status.HTTP_404_NOT_FOUND
@@ -2824,6 +2855,10 @@ class PaitentIDView(APIView):
 
         # تحويل الكائن إلى JSON باستخدام Serializer
         paitent_data = serializers.UserSerializer(paitent).data
+
+        if paitent_data["is_paitent"] == False:
+            message = "Paitent with this Id is not Found."
+            return utils.FunReturn(1, message, status.HTTP_404_NOT_FOUND)
 
         status_code = status.HTTP_200_OK
         response = {
