@@ -42,16 +42,20 @@ class OneTimeOTPSerializer(serializers.ModelSerializer):
 
 # *****************************************************************
 # =================================================================
-# *** Admin Profile *** #
+# *** Admin (Profile) *** #
 class AdminProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.AdminProfile
         fields = "__all__"
 
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        response["admin"] = UserSerializer(instance.user).data
+        return response
 
-# *** Admin Register *** #
+
+# *** Admin (Register) *** #
 class AdminRegisterSerializer(serializers.ModelSerializer):
-    profile = AdminProfileSerializer(required=False)
     password2 = serializers.CharField(write_only=True)
 
     class Meta:
@@ -62,7 +66,6 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
             "email",
             "password",
             "password2",
-            "profile",
         )
         extra_kwargs = {
             "password": {
@@ -83,16 +86,51 @@ class AdminRegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        profile_data = validated_data.pop("profile")
         user = models.User.objects.create_adminuser(**validated_data)
-        models.AdminProfile.objects.create(
-            user=user,
-            gender=profile_data["gender"],
-            image=profile_data["image"],
-            phone_number=profile_data["phone_number"],
-            age=profile_data["age"],
-        )
         return user
+
+
+# *** Admin (Resend OTP) *** #
+class AdminResendOTPSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=True)
+
+    class Meta:
+        model = models.User
+        fields = ["email"]
+
+    def validate_email(self, value):
+        """
+        Ensure the email exists in the User model.
+        """
+        if not models.User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_("No admin found with this email."))
+        return value
+
+
+# *** Admin (Login) *** #
+class AdminLoginSerializer(serializers.Serializer):
+    email = serializers.CharField(max_length=500)
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        try:
+            # Fetch the Admin by email
+            admin = models.User.objects.get(email=email)
+        except models.User.DoesNotExist:
+            raise AuthenticationFailed(_("Invalid Email or Password."))
+
+        # Authenticate admin by verifying the password
+        if not admin.check_password(password):
+            raise AuthenticationFailed(_("Invalid Email or Password."))
+
+        # Check if the admin is active
+        if not admin.is_active:
+            raise AuthenticationFailed(_("admin account is deactivated."))
+
+        return admin
 
 
 # *****************************************************************
@@ -159,7 +197,7 @@ class DoctorResendOTPSerializer(serializers.ModelSerializer):
         Ensure the email exists in the User model.
         """
         if not models.User.objects.filter(email=value).exists():
-            raise serializers.ValidationError(_("No driver found with this email."))
+            raise serializers.ValidationError(_("No doctor found with this email."))
         return value
 
 
@@ -196,17 +234,15 @@ class StaffProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.StaffProfile
         fields = "__all__"
-        # fields = (
-        #     "gender",
-        #     "image",
-        #     "phone_number",
-        #     "age",
-        # )
+
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        response["staff"] = UserSerializer(instance.user).data
+        return response
 
 
 # *** Staff Register *** #
 class StaffRegisterSerializer(serializers.ModelSerializer):
-    profile = StaffProfileSerializer(required=False)
     password2 = serializers.CharField(write_only=True)
 
     class Meta:
@@ -217,7 +253,6 @@ class StaffRegisterSerializer(serializers.ModelSerializer):
             "email",
             "password",
             "password2",
-            "profile",
         )
         extra_kwargs = {
             "password": {
@@ -238,16 +273,51 @@ class StaffRegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        profile_data = validated_data.pop("profile")
         user = models.User.objects.create_staffuser(**validated_data)
-        models.StaffProfile.objects.create(
-            user=user,
-            gender=profile_data["gender"],
-            image=profile_data["image"],
-            phone_number=profile_data["phone_number"],
-            age=profile_data["age"],
-        )
         return user
+
+
+# *** Staff (Resend OTP) *** #
+class StaffResendOTPSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=True)
+
+    class Meta:
+        model = models.User
+        fields = ["email"]
+
+    def validate_email(self, value):
+        """
+        Ensure the email exists in the User model.
+        """
+        if not models.User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_("No doctor found with this email."))
+        return value
+
+
+# *** Staff (Login) *** #
+class StaffLoginSerializer(serializers.Serializer):
+    email = serializers.CharField(max_length=500)
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        try:
+            # Fetch the staff by email
+            staff = models.User.objects.get(email=email)
+        except models.User.DoesNotExist:
+            raise AuthenticationFailed(_("Invalid Email or Password."))
+
+        # Authenticate staff by verifying the password
+        if not staff.check_password(password):
+            raise AuthenticationFailed(_("Invalid Email or Password."))
+
+        # Check if the staff is active
+        if not staff.is_active:
+            raise AuthenticationFailed(_("staff account is deactivated."))
+
+        return staff
 
 
 # *****************************************************************
@@ -258,10 +328,14 @@ class PaitentProfileSerializer(serializers.ModelSerializer):
         model = models.PaitentProfile
         fields = "__all__"
 
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        response["paitent"] = UserSerializer(instance.user).data
+        return response
+
 
 # *** Paitent Register *** #
 class PaitentRegisterSerializer(serializers.ModelSerializer):
-    profile = PaitentProfileSerializer(required=False)
     password2 = serializers.CharField(write_only=True)
 
     class Meta:
@@ -272,7 +346,6 @@ class PaitentRegisterSerializer(serializers.ModelSerializer):
             "email",
             "password",
             "password2",
-            "profile",
         )
         extra_kwargs = {
             "password": {
@@ -293,16 +366,51 @@ class PaitentRegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        profile_data = validated_data.pop("profile")
         user = models.User.objects.create_paitentuser(**validated_data)
-        models.PaitentProfile.objects.create(
-            user=user,
-            gender=profile_data["gender"],
-            image=profile_data["image"],
-            phone_number=profile_data["phone_number"],
-            age=profile_data["age"],
-        )
         return user
+
+
+# *** Paitent (Resend OTP) *** #
+class PaitentResendOTPSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(required=True)
+
+    class Meta:
+        model = models.User
+        fields = ["email"]
+
+    def validate_email(self, value):
+        """
+        Ensure the email exists in the User model.
+        """
+        if not models.User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_("No paitent found with this email."))
+        return value
+
+
+# *** Paitent (Login) *** #
+class PaitentLoginSerializer(serializers.Serializer):
+    email = serializers.CharField(max_length=500)
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        try:
+            # Fetch the paitent by email
+            paitent = models.User.objects.get(email=email)
+        except models.User.DoesNotExist:
+            raise AuthenticationFailed(_("Invalid Email or Password."))
+
+        # Authenticate paitent by verifying the password
+        if not paitent.check_password(password):
+            raise AuthenticationFailed(_("Invalid Email or Password."))
+
+        # Check if the paitent is active
+        if not paitent.is_active:
+            raise AuthenticationFailed(_("paitent account is deactivated."))
+
+        return paitent
 
 
 # *****************************************************************

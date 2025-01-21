@@ -13,6 +13,74 @@ urlpatterns = [
     # =================================================================
     # *** User auths API Endpoints *** #
     # ================================================================
+    # *** Admin *** #
+    # (Registration)
+    path(
+        "admin/register/",
+        views.AdminRegisterView.as_view(),
+        name="admin-register-api",
+    ),
+    # (Profile)
+    path(
+        "admin/profile/<int:pk>/",
+        views.AdminProfileView.as_view(),
+        name="admin-profile-id",
+    ),
+    # (Resend OTP)
+    path(
+        "admin/resend-otp/",
+        views.AdminResendOTPView.as_view(),
+        name="admin-resend-otp-api",
+    ),
+    # (Verify Account)
+    path(
+        "admin/verify-account/",
+        views.AdminVerifyAccountView.as_view(),
+        name="verify-account-api",
+    ),
+    # (Login)
+    path(
+        "admin/login/",
+        views.AdminLoginView.as_view(),
+        name="admin-login-api",
+    ),
+    # (ID)
+    path(
+        "admin/<int:pk>/",
+        views.AdminIDView.as_view(),
+        name="admin-user-id",
+    ),
+    # (Refresh)
+    path(
+        "admin/refresh/",
+        views.AdminRefreshView.as_view(),
+        name="admin-user-refresh",
+    ),
+    # (Change Password)
+    path(
+        "admin/change-password/",
+        views.AdminChangePasswordView.as_view(),
+        name="admin-change-password-api",
+    ),
+    # (Logout)
+    path(
+        "admin/logout/",
+        views.AdminLogoutView.as_view(),
+        name="admin-logout-api",
+    ),
+    # (Reset Password)
+    path(
+        "admin/reset-password/",
+        views.AdminPasswordResetView.as_view(),
+        name="admin-reset-password-api",
+    ),
+    # (Confirm Reset Password)
+    path(
+        "admin/confirm-reset-password/",
+        views.AdminConfirmResetPasswordView.as_view(),
+        name="admin-confirm-reset-password",
+    ),
+    # ================================================================
     # *** Doctor *** #
     # (Registration)
     path(
@@ -80,6 +148,7 @@ urlpatterns = [
         views.DoctorConfirmResetPasswordView.as_view(),
         name="doctor-confirm-reset-password",
     ),
+    # =================================================================
     # (Token Refreshing)
     path(
         "token/refresh/",

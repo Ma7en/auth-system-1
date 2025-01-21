@@ -31,7 +31,808 @@ from accounts import utils
 
 # *****************************************************************
 # =================================================================
-# *** Doctor (Register) *** #
+# *** 1) Admin (Register) *** #
+class AdminRegisterView(generics.CreateAPIView):
+    queryset = models.User.objects.all()
+    serializer_class = serializers.AdminRegisterSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        serializer = serializers.AdminRegisterSerializer(data=request.data)
+
+        if serializer.is_valid():
+            # Step 1: Save the user data using the serializer's create method
+            admin = serializer.save()
+            admin_data = serializers.UserSerializer(admin).data
+
+            # Step 2: Send OTP to the admin's email using the utility function
+            try:
+                # Call the email-sending function
+                utils.send_otp_for_doctor(admin.email)
+            except SMTPRecipientsRefused as e:
+                # Handle invalid email error
+                # error_messages = str(e.recipients)
+                # print(f"Error sending OTP to {admin.email}: {error_messages}")
+                raise ValidationError(
+                    {
+                        "Error": "Invald Email",
+                    }
+                )
+
+            # Step 3: Return success response
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Admin registered successfully, and We have sent an OTP to your Email!",
+                "status_code": status_code,
+                "data": admin_data,
+            }
+            return Response(
+                response,
+                status=status.HTTP_201_CREATED,
+            )
+
+        status_code = status.HTTP_400_BAD_REQUEST
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": serializer.errors,
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Admin (Profile) *** #
+class AdminProfileView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = serializers.AdminProfileSerializer
+
+    def get_queryset(self):
+        return models.AdminProfile.objects.all()
+
+    def get_object(self):
+        try:
+            admin_pk = self.kwargs["pk"]  # 1
+            admin_profile = models.AdminProfile.objects.get(user=admin_pk)
+            return admin_profile
+        except models.AdminProfile.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            raise NotFound(
+                {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Admin Profile not found",
+                    "status_code": status_code,
+                    "data": "",
+                }
+            )
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        admin_data = serializer.data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Admin Profile retrieved successfully",
+            "status_code": status_code,
+            "data": admin_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        admin_data = serializer.data
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Admin Profile updated successfully",
+            "status_code": status_code,
+            "data": admin_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Admin (Resend OTP) *** #
+class AdminResendOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = serializers.AdminResendOTPSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": serializer.errors,
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        email = serializer.validated_data["email"]
+        try:
+            user = models.User.objects.get(email=email)
+
+            # Check if the doctor is already verified
+            if user.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account has already been verified. Please go to the login page.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+            # Resend OTP if not verified
+            utils.send_otp_for_doctor(user.email)
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "No user found with this email.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "OTP has been resent to your email.",
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Admin (Verify Account) *** #
+class AdminVerifyAccountView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        otp_code = request.data.get("otp_code")
+
+        # Ensure OTP code is provided
+        if not otp_code:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP code is required",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        try:
+            # Retrieve the OTP record from OneTimeOTP model
+            otp = models.OneTimeOTP.objects.get(otp=otp_code)
+        except models.OneTimeOTP.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Invalid OTP Code",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Check OTP expiration
+        if otp.is_expired():
+            # otp.delete()
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP has expired",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Determine if the OTP belongs to a User
+        if otp.user:
+            user = otp.user
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "No associated user for this OTP code",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Check if the user is already verified
+        if user.is_verified:
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Email already verified",
+                "status_code": status_code,
+                "data": user,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Mark user as verified
+        user.is_verified = True
+        user.save()
+
+        # Send verification success email
+        utils.send_verification_email(
+            user, otp_code
+        )  # Assuming this sends the confirmation email
+
+        # Optionally delete OTP record after successful verification
+        otp.delete()
+
+        doctor_data = serializers.UserSerializer(user).data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": "Email verified successfully",
+            "status_code": status_code,
+            "data": doctor_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Admin (Login) *** #
+class AdminLoginView(APIView):
+    def post(self, request):
+        # Deserialize the admin login data
+        serializer = serializers.AdminLoginSerializer(data=request.data)
+
+        if serializer.is_valid():
+            admin = serializer.validated_data  # Extract the validated admin
+
+            if not admin.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account is not verified. Please verify your account to proceed.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Generate refresh token and include admin_id in the token payload
+            refresh = RefreshToken.for_user(admin)
+            refresh["admin_id"] = (
+                admin.id
+            )  # Explicitly add driver_id to the token payload
+
+            # Generate access token
+            access_token = refresh.access_token
+
+            admin_data = serializers.UserSerializer(admin).data
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Invalid OTP Code",
+                "status_code": status_code,
+                "data": admin_data,
+                "access_token": str(access_token),
+                "refresh_token": str(refresh),
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        status_code = status.HTTP_400_BAD_REQUEST
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": serializer.errors,
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Admin (ID) *** #
+class AdminIDView(APIView):
+    def get(self, request, pk):
+        try:
+            # البحث عن السائق باستخدام المعرف (pk)
+            admin = models.User.objects.get(pk=pk)
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Admin not found.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # تحويل الكائن إلى JSON باستخدام Serializer
+        admin_data = serializers.UserSerializer(admin).data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Admin retrieved successfully.",
+            "status_code": status_code,
+            "data": admin_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Admin (Refresh) *** #
+class AdminRefreshView(APIView):
+    def post(self, request):
+        try:
+            # Retrieve and decode the refresh token
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                status_code = status.HTTP_404_NOT_FOUND
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": {
+                        "refresh_token": "This field is required.",
+                    },
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Decode the JWT token
+            payload = jwt.decode(
+                refresh_token, SECRET_KEY, algorithms=["HS256"]
+            )  # {'token_type': 'refresh', 'exp': 1737402322, 'iat': 1737315922, 'jti': '626f3935d64e4ebcbfcb53d54041f2ab', 'user_id': 1, 'doctor_id': 1}
+
+            # Retrieve user_id from the token payload
+            user_id = payload.get("user_id")
+            if not user_id:
+                raise ValidationError(
+                    {
+                        "refresh_token": "Invalid token payload.",
+                    }
+                )
+
+            # Fetch the Driver object
+            admin = models.User.objects.get(id=user_id)
+
+            # Serialize the Driver object
+            admin_data = serializers.UserSerializer(admin).data
+
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Admin retrieved successfully.",
+                "status_code": status_code,
+                "data": admin_data,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        except models.User.DoesNotExist:
+            raise ValidationError(
+                {
+                    "message": "Driver not found.",
+                }
+            )
+
+        except jwt.ExpiredSignatureError:
+            raise ValidationError(
+                {
+                    "message": "Refresh token has expired.",
+                }
+            )
+
+        except jwt.InvalidTokenError:
+            raise ValidationError(
+                {
+                    "message": "Invalid refresh token.",
+                }
+            )
+
+        except Exception as e:
+            raise ValidationError(
+                {
+                    "message": str(e),
+                }
+            )
+
+
+# *** Admin (Change Password) *** #
+class AdminChangePasswordView(APIView):
+    def post(self, request):
+        try:
+            # Retrieve and decode the refresh token
+            refresh_token = request.data.get("refresh_token")
+
+            if not refresh_token:
+                raise ValidationError({"refresh_token": "This field is required."})
+
+            payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=["HS256"])
+            admin_id = payload.get("admin_id")
+
+            # Fetch the admin
+            admin = models.User.objects.get(id=admin_id)
+
+            # Validate old password
+            old_password = request.data.get("old_password")
+
+            if not old_password or not check_password(old_password, admin.password):
+                raise ValidationError({"message": "Old password is incorrect."})
+
+            # Validate new passwords
+            new_password = request.data.get("new_password")
+            confirm_password = request.data.get("confirm_password")
+
+            # validate_password(new_password, confirm_password)
+
+            # Change password
+            admin.set_password(new_password)
+            admin.save()
+            utils.send_change_password_confirm(admin)
+
+            admin_data = serializers.UserSerializer(admin).data
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Password changed successfully.",
+                "status_code": status_code,
+                "data": admin_data,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        except jwt.ExpiredSignatureError:
+            raise ValidationError("Token has expired")
+        except jwt.InvalidTokenError:
+            raise ValidationError("Invalid token")
+        except models.User.DoesNotExist:
+            raise ValidationError("Driver not found")
+        except ValidationError as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": e.detail,
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Admin (Logout) *** #
+class AdminLogoutView(APIView):
+    def post(self, request):
+        try:
+            # Get the refresh token from the request
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                status_code = status.HTTP_400_BAD_REQUEST
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Refresh token not provided.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Decode the refresh token
+            token = RefreshToken(refresh_token)
+            admin_id_in_token = token.payload.get("user_id")
+
+            if not admin_id_in_token:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Invalid token: user_id missing.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Validate that the admin exists and matches the current authenticated admin
+            admin = models.User.objects.filter(id=admin_id_in_token).first()
+            if not admin:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Invalid token: admin not found.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Expire the token (logout the admin)
+            token.set_exp()
+
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Logout successful.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+        except Exception as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": str(e),
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Admin (Reset Password) *** #
+class AdminPasswordResetView(APIView):
+    def post(self, request):
+        email = request.data.get("email")
+
+        if not email:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Email is required.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        try:
+            admin = models.User.objects.get(email=email)
+            if not admin.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account is not verified. Please verify your account to proceed.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Admin with this email does not exist.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Send OTP for password reset
+        try:
+            utils.send_otp_for_password_reset(email, user_type="admin")
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "OTP has been sent to your email.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+        except ValueError as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": str(e),
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Admin (Confirm Reset Password) *** #
+class AdminConfirmResetPasswordView(APIView):
+    """
+    This view allows a Admin to reset their password after OTP verification.
+    """
+
+    def post(self, request):
+        otp = request.data.get("otp")
+        password = request.data.get("password")
+        password2 = request.data.get("password2")
+
+        if password != password2:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Passwords do not match.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Validate OTP
+        try:
+            otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
+        except models.OneTimeOTP.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Invalid OTP.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        if otp_instance.is_expired():
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP has expired.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        admin = otp_instance.user
+        password = password
+
+        admin.set_password(password)
+        admin.save()
+        utils.send_reset_password_confirm(admin)
+
+        # Delete the used OTP
+        models.OneTimeOTP.objects.filter(user=admin).delete()
+
+        admin_data = serializers.UserSerializer(admin).data
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Confirm Reset Password Successfully.",
+            "status_code": status_code,
+            "data": admin_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *****************************************************************
+# =================================================================
+# *** 2) Doctor (Register) *** #
 class DoctorRegisterView(generics.CreateAPIView):
     queryset = models.User.objects.all()
     serializer_class = serializers.DoctorRegisterSerializer
@@ -832,4 +1633,1608 @@ class DoctorConfirmResetPasswordView(APIView):
 
 # *****************************************************************
 # =================================================================
-# ***   *** #
+# *** Staff *** #
+# *** 3) Staff (Register) *** #
+class StaffRegisterView(generics.CreateAPIView):
+    queryset = models.User.objects.all()
+    serializer_class = serializers.StaffRegisterSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        serializer = serializers.StaffRegisterSerializer(data=request.data)
+
+        if serializer.is_valid():
+            # Step 1: Save the user data using the serializer's create method
+            staff = serializer.save()
+            staff_data = serializers.UserSerializer(staff).data
+
+            # Step 2: Send OTP to the staff's email using the utility function
+            try:
+                # Call the email-sending function
+                utils.send_otp_for_doctor(staff.email)
+            except SMTPRecipientsRefused as e:
+                # Handle invalid email error
+                # error_messages = str(e.recipients)
+                # print(f"Error sending OTP to {staff.email}: {error_messages}")
+                raise ValidationError(
+                    {
+                        "Error": "Invald Email",
+                    }
+                )
+
+            # Step 3: Return success response
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Staff registered successfully, and We have sent an OTP to your Email!",
+                "status_code": status_code,
+                "data": staff_data,
+            }
+            return Response(
+                response,
+                status=status.HTTP_201_CREATED,
+            )
+
+        status_code = status.HTTP_400_BAD_REQUEST
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": serializer.errors,
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Staff (Profile) *** #
+class StaffProfileView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = serializers.StaffProfileSerializer
+
+    def get_queryset(self):
+        return models.StaffProfile.objects.all()
+
+    def get_object(self):
+        try:
+            staff_pk = self.kwargs["pk"]  # 1
+            staff_profile = models.StaffProfile.objects.get(user=staff_pk)
+            return staff_profile
+        except models.StaffProfile.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            raise NotFound(
+                {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Staff Profile not found",
+                    "status_code": status_code,
+                    "data": "",
+                }
+            )
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        staff_data = serializer.data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Staff Profile retrieved successfully",
+            "status_code": status_code,
+            "data": staff_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        staff_data = serializer.data
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Staff Profile updated successfully",
+            "status_code": status_code,
+            "data": staff_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Staff (Resend OTP) *** #
+class StaffResendOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = serializers.StaffResendOTPSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": serializer.errors,
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        email = serializer.validated_data["email"]
+        try:
+            user = models.User.objects.get(email=email)
+
+            # Check if the doctor is already verified
+            if user.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account has already been verified. Please go to the login page.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+            # Resend OTP if not verified
+            utils.send_otp_for_doctor(user.email)
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "No user found with this email.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "OTP has been resent to your email.",
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Staff (Verify Account) *** #
+class StaffVerifyAccountView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        otp_code = request.data.get("otp_code")
+
+        # Ensure OTP code is provided
+        if not otp_code:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP code is required",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        try:
+            # Retrieve the OTP record from OneTimeOTP model
+            otp = models.OneTimeOTP.objects.get(otp=otp_code)
+        except models.OneTimeOTP.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Invalid OTP Code",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Check OTP expiration
+        if otp.is_expired():
+            # otp.delete()
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP has expired",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Determine if the OTP belongs to a User
+        if otp.user:
+            user = otp.user
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "No associated user for this OTP code",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Check if the user is already verified
+        if user.is_verified:
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Email already verified",
+                "status_code": status_code,
+                "data": user,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Mark user as verified
+        user.is_verified = True
+        user.save()
+
+        # Send verification success email
+        utils.send_verification_email(
+            user, otp_code
+        )  # Assuming this sends the confirmation email
+
+        # Optionally delete OTP record after successful verification
+        otp.delete()
+
+        staff_data = serializers.UserSerializer(user).data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": "Email verified successfully",
+            "status_code": status_code,
+            "data": staff_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Staff (Login) *** #
+class StaffLoginView(APIView):
+    def post(self, request):
+        # Deserialize the staff login data
+        serializer = serializers.StaffLoginSerializer(data=request.data)
+
+        if serializer.is_valid():
+            staff = serializer.validated_data  # Extract the validated staff
+
+            if not staff.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account is not verified. Please verify your account to proceed.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Generate refresh token and include staff_id in the token payload
+            refresh = RefreshToken.for_user(staff)
+            refresh["staff_id"] = (
+                staff.id
+            )  # Explicitly add driver_id to the token payload
+
+            # Generate access token
+            access_token = refresh.access_token
+
+            staff_data = serializers.UserSerializer(staff).data
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Invalid OTP Code",
+                "status_code": status_code,
+                "data": staff_data,
+                "access_token": str(access_token),
+                "refresh_token": str(refresh),
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        status_code = status.HTTP_400_BAD_REQUEST
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": serializer.errors,
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Staff (ID) *** #
+class StaffIDView(APIView):
+    def get(self, request, pk):
+        try:
+            # البحث عن السائق باستخدام المعرف (pk)
+            staff = models.User.objects.get(pk=pk)
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Staff not found.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # تحويل الكائن إلى JSON باستخدام Serializer
+        admin_data = serializers.UserSerializer(staff).data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Staff retrieved successfully.",
+            "status_code": status_code,
+            "data": admin_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Staff (Refresh) *** #
+class StaffRefreshView(APIView):
+    def post(self, request):
+        try:
+            # Retrieve and decode the refresh token
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                status_code = status.HTTP_404_NOT_FOUND
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": {
+                        "refresh_token": "This field is required.",
+                    },
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Decode the JWT token
+            payload = jwt.decode(
+                refresh_token, SECRET_KEY, algorithms=["HS256"]
+            )  # {'token_type': 'refresh', 'exp': 1737402322, 'iat': 1737315922, 'jti': '626f3935d64e4ebcbfcb53d54041f2ab', 'user_id': 1, 'doctor_id': 1}
+
+            # Retrieve user_id from the token payload
+            user_id = payload.get("user_id")
+            if not user_id:
+                raise ValidationError(
+                    {
+                        "refresh_token": "Invalid token payload.",
+                    }
+                )
+
+            # Fetch the Staff object
+            staff = models.User.objects.get(id=user_id)
+
+            # Serialize the Staff object
+            staff_data = serializers.UserSerializer(staff).data
+
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Staff retrieved successfully.",
+                "status_code": status_code,
+                "data": staff_data,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        except models.User.DoesNotExist:
+            raise ValidationError(
+                {
+                    "message": "Staff not found.",
+                }
+            )
+
+        except jwt.ExpiredSignatureError:
+            raise ValidationError(
+                {
+                    "message": "Refresh token has expired.",
+                }
+            )
+
+        except jwt.InvalidTokenError:
+            raise ValidationError(
+                {
+                    "message": "Invalid refresh token.",
+                }
+            )
+
+        except Exception as e:
+            raise ValidationError(
+                {
+                    "message": str(e),
+                }
+            )
+
+
+# *** Staff (Change Password) *** #
+class StaffChangePasswordView(APIView):
+    def post(self, request):
+        try:
+            # Retrieve and decode the refresh token
+            refresh_token = request.data.get("refresh_token")
+
+            if not refresh_token:
+                raise ValidationError({"refresh_token": "This field is required."})
+
+            payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=["HS256"])
+            staff_id = payload.get("staff_id")
+
+            # Fetch the staff
+            staff = models.User.objects.get(id=staff_id)
+
+            # Validate old password
+            old_password = request.data.get("old_password")
+
+            if not old_password or not check_password(old_password, staff.password):
+                raise ValidationError({"message": "Old password is incorrect."})
+
+            # Validate new passwords
+            new_password = request.data.get("new_password")
+            confirm_password = request.data.get("confirm_password")
+
+            # validate_password(new_password, confirm_password)
+
+            # Change password
+            staff.set_password(new_password)
+            staff.save()
+            utils.send_change_password_confirm(staff)
+
+            staff_data = serializers.UserSerializer(staff).data
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Password changed successfully.",
+                "status_code": status_code,
+                "data": staff_data,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        except jwt.ExpiredSignatureError:
+            raise ValidationError("Token has expired")
+        except jwt.InvalidTokenError:
+            raise ValidationError("Invalid token")
+        except models.User.DoesNotExist:
+            raise ValidationError("Driver not found")
+        except ValidationError as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": e.detail,
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Staff (Logout) *** #
+class StaffLogoutView(APIView):
+    def post(self, request):
+        try:
+            # Get the refresh token from the request
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                status_code = status.HTTP_400_BAD_REQUEST
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Refresh token not provided.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Decode the refresh token
+            token = RefreshToken(refresh_token)
+            staff_id_in_token = token.payload.get("user_id")
+
+            if not staff_id_in_token:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Invalid token: user id missing.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Validate that the staff exists and matches the current authenticated staff
+            staff = models.User.objects.filter(id=staff_id_in_token).first()
+            if not staff:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Invalid token: staff not found.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Expire the token (logout the staff)
+            token.set_exp()
+
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Logout successful.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+        except Exception as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": str(e),
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Staff (Reset Password) *** #
+class StaffPasswordResetView(APIView):
+    def post(self, request):
+        email = request.data.get("email")
+
+        if not email:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Email is required.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        try:
+            staff = models.User.objects.get(email=email)
+            if not staff.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account is not verified. Please verify your account to proceed.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Admin with this email does not exist.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Send OTP for password reset
+        try:
+            utils.send_otp_for_password_reset(email, user_type="staff")
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "OTP has been sent to your email.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+        except ValueError as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": str(e),
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Staff (Confirm Reset Password) *** #
+class StaffConfirmResetPasswordView(APIView):
+    """
+    This view allows a staff to reset their password after OTP verification.
+    """
+
+    def post(self, request):
+        otp = request.data.get("otp")
+        password = request.data.get("password")
+        password2 = request.data.get("password2")
+
+        if password != password2:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Passwords do not match.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Validate OTP
+        try:
+            otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
+        except models.OneTimeOTP.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Invalid OTP.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        if otp_instance.is_expired():
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP has expired.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        staff = otp_instance.user
+        password = password
+
+        staff.set_password(password)
+        staff.save()
+        utils.send_reset_password_confirm(staff)
+
+        # Delete the used OTP
+        models.OneTimeOTP.objects.filter(user=staff).delete()
+
+        staff_data = serializers.UserSerializer(staff).data
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Confirm Reset Password Successfully.",
+            "status_code": status_code,
+            "data": staff_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *****************************************************************
+# =================================================================
+# *** 4) Paitent *** #
+# *** Paitent (Register) *** #
+class PaitentRegisterView(generics.CreateAPIView):
+    queryset = models.User.objects.all()
+    serializer_class = serializers.PaitentRegisterSerializer
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        serializer = serializers.PaitentRegisterSerializer(data=request.data)
+
+        if serializer.is_valid():
+            # Step 1: Save the user data using the serializer's create method
+            paitent = serializer.save()
+            paitent_data = serializers.UserSerializer(paitent).data
+
+            # Step 2: Send OTP to the paitent's email using the utility function
+            try:
+                # Call the email-sending function
+                utils.send_otp_for_doctor(paitent.email)
+            except SMTPRecipientsRefused as e:
+                # Handle invalid email error
+                # error_messages = str(e.recipients)
+                # print(f"Error sending OTP to {paitent.email}: {error_messages}")
+                raise ValidationError(
+                    {
+                        "Error": "Invald Email",
+                    }
+                )
+
+            # Step 3: Return success response
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "paitent registered successfully, and We have sent an OTP to your Email!",
+                "status_code": status_code,
+                "data": paitent_data,
+            }
+            return Response(
+                response,
+                status=status.HTTP_201_CREATED,
+            )
+
+        status_code = status.HTTP_400_BAD_REQUEST
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": serializer.errors,
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Paitent (Profile) *** #
+class PaitentProfileView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = serializers.PaitentProfileSerializer
+
+    def get_queryset(self):
+        return models.PaitentProfile.objects.all()
+
+    def get_object(self):
+        try:
+            paitent_pk = self.kwargs["pk"]  # 1
+            paitent_profile = models.PaitentProfile.objects.get(user=paitent_pk)
+            return paitent_profile
+        except models.PaitentProfile.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            raise NotFound(
+                {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Paitent Profile not found",
+                    "status_code": status_code,
+                    "data": "",
+                }
+            )
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        paitent_data = serializer.data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Paitent Profile retrieved successfully",
+            "status_code": status_code,
+            "data": paitent_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        paitent_data = serializer.data
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Paitent Profile updated successfully",
+            "status_code": status_code,
+            "data": paitent_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Paitent (Resend OTP) *** #
+class PaitentResendOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = serializers.PaitentResendOTPSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": serializer.errors,
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        email = serializer.validated_data["email"]
+        try:
+            user = models.User.objects.get(email=email)
+
+            # Check if the doctor is already verified
+            if user.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account has already been verified. Please go to the login page.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+            # Resend OTP if not verified
+            utils.send_otp_for_doctor(user.email)
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "No user found with this email.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "OTP has been resent to your email.",
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Paitent (Verify Account) *** #
+class PaitentVerifyAccountView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        otp_code = request.data.get("otp_code")
+
+        # Ensure OTP code is provided
+        if not otp_code:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP code is required",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        try:
+            # Retrieve the OTP record from OneTimeOTP model
+            otp = models.OneTimeOTP.objects.get(otp=otp_code)
+        except models.OneTimeOTP.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Invalid OTP Code",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Check OTP expiration
+        if otp.is_expired():
+            # otp.delete()
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP has expired",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Determine if the OTP belongs to a User
+        if otp.user:
+            user = otp.user
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "No associated user for this OTP code",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Check if the user is already verified
+        if user.is_verified:
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Email already verified",
+                "status_code": status_code,
+                "data": user,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Mark user as verified
+        user.is_verified = True
+        user.save()
+
+        # Send verification success email
+        utils.send_verification_email(
+            user, otp_code
+        )  # Assuming this sends the confirmation email
+
+        # Optionally delete OTP record after successful verification
+        otp.delete()
+
+        doctor_data = serializers.UserSerializer(user).data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": "Email verified successfully",
+            "status_code": status_code,
+            "data": doctor_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Paitent (Login) *** #
+class PaitentLoginView(APIView):
+    def post(self, request):
+        # Deserialize the paitent login data
+        serializer = serializers.PaitentLoginSerializer(data=request.data)
+
+        if serializer.is_valid():
+            paitent = serializer.validated_data  # Extract the validated paitent
+
+            if not paitent.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account is not verified. Please verify your account to proceed.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Generate refresh token and include paitent_id in the token payload
+            refresh = RefreshToken.for_user(paitent)
+            refresh["paitent_id"] = (
+                paitent.id
+            )  # Explicitly add driver_id to the token payload
+
+            # Generate access token
+            access_token = refresh.access_token
+
+            paitent_data = serializers.UserSerializer(paitent).data
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Invalid OTP Code",
+                "status_code": status_code,
+                "data": paitent_data,
+                "access_token": str(access_token),
+                "refresh_token": str(refresh),
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        status_code = status.HTTP_400_BAD_REQUEST
+        response = {
+            "success": "False",
+            "code": 1,
+            "message": serializer.errors,
+            "status_code": status_code,
+            "data": "",
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Paitent (ID) *** #
+class PaitentIDView(APIView):
+    def get(self, request, pk):
+        try:
+            # البحث عن السائق باستخدام المعرف (pk)
+            paitent = models.User.objects.get(pk=pk)
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_404_NOT_FOUND
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Paitent not found.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # تحويل الكائن إلى JSON باستخدام Serializer
+        paitent_data = serializers.UserSerializer(paitent).data
+
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Paitent retrieved successfully.",
+            "status_code": status_code,
+            "data": paitent_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *** Paitent (Refresh) *** #
+class PaitentRefreshView(APIView):
+    def post(self, request):
+        try:
+            # Retrieve and decode the refresh token
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                status_code = status.HTTP_404_NOT_FOUND
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": {
+                        "refresh_token": "This field is required.",
+                    },
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Decode the JWT token
+            payload = jwt.decode(
+                refresh_token, SECRET_KEY, algorithms=["HS256"]
+            )  # {'token_type': 'refresh', 'exp': 1737402322, 'iat': 1737315922, 'jti': '626f3935d64e4ebcbfcb53d54041f2ab', 'user_id': 1, 'doctor_id': 1}
+
+            # Retrieve user_id from the token payload
+            user_id = payload.get("user_id")
+            if not user_id:
+                raise ValidationError(
+                    {
+                        "refresh_token": "Invalid token payload.",
+                    }
+                )
+
+            # Fetch the Driver object
+            paitent = models.User.objects.get(id=user_id)
+
+            # Serialize the Driver object
+            paitent_data = serializers.UserSerializer(paitent).data
+
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "paitent retrieved successfully.",
+                "status_code": status_code,
+                "data": paitent_data,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        except models.User.DoesNotExist:
+            raise ValidationError(
+                {
+                    "message": "Driver not found.",
+                }
+            )
+
+        except jwt.ExpiredSignatureError:
+            raise ValidationError(
+                {
+                    "message": "Refresh token has expired.",
+                }
+            )
+
+        except jwt.InvalidTokenError:
+            raise ValidationError(
+                {
+                    "message": "Invalid refresh token.",
+                }
+            )
+
+        except Exception as e:
+            raise ValidationError(
+                {
+                    "message": str(e),
+                }
+            )
+
+
+# *** Paitent (Change Password) *** #
+class PaitentChangePasswordView(APIView):
+    def post(self, request):
+        try:
+            # Retrieve and decode the refresh token
+            refresh_token = request.data.get("refresh_token")
+
+            if not refresh_token:
+                raise ValidationError({"refresh_token": "This field is required."})
+
+            payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=["HS256"])
+            paitent_id = payload.get("paitent_id")
+
+            # Fetch the paitent
+            paitent = models.User.objects.get(id=paitent_id)
+
+            # Validate old password
+            old_password = request.data.get("old_password")
+
+            if not old_password or not check_password(old_password, paitent.password):
+                raise ValidationError({"message": "Old password is incorrect."})
+
+            # Validate new passwords
+            new_password = request.data.get("new_password")
+            confirm_password = request.data.get("confirm_password")
+
+            # validate_password(new_password, confirm_password)
+
+            # Change password
+            paitent.set_password(new_password)
+            paitent.save()
+            utils.send_change_password_confirm(paitent)
+
+            paitent_data = serializers.UserSerializer(paitent).data
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Password changed successfully.",
+                "status_code": status_code,
+                "data": paitent_data,
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        except jwt.ExpiredSignatureError:
+            raise ValidationError("Token has expired")
+        except jwt.InvalidTokenError:
+            raise ValidationError("Invalid token")
+        except models.User.DoesNotExist:
+            raise ValidationError("Driver not found")
+        except ValidationError as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": e.detail,
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Paitent (Logout) *** #
+class PaitentLogoutView(APIView):
+    def post(self, request):
+        try:
+            # Get the refresh token from the request
+            refresh_token = request.data.get("refresh_token")
+            if not refresh_token:
+                status_code = status.HTTP_400_BAD_REQUEST
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Refresh token not provided.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Decode the refresh token
+            token = RefreshToken(refresh_token)
+            paitent_id_in_token = token.payload.get("user_id")
+
+            if not paitent_id_in_token:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Invalid token: user id missing.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Validate that the paitent exists and matches the current authenticated paitent
+            paitent = models.User.objects.filter(id=paitent_id_in_token).first()
+            if not paitent:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Invalid token: paitent not found.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+            # Expire the token (logout the paitent)
+            token.set_exp()
+
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "Logout successful.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+        except Exception as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": str(e),
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Paitent (Reset Password) *** #
+class PaitentPasswordResetView(APIView):
+    def post(self, request):
+        email = request.data.get("email")
+
+        if not email:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Email is required.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        try:
+            paitent = models.User.objects.get(email=email)
+            if not paitent.is_verified:
+                status_code = status.HTTP_403_FORBIDDEN
+                response = {
+                    "success": "False",
+                    "code": 1,
+                    "message": "Your account is not verified. Please verify your account to proceed.",
+                    "status_code": status_code,
+                    "data": "",
+                }
+                return Response(
+                    response,
+                    status=status_code,
+                )
+
+        except models.User.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Admin with this email does not exist.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Send OTP for password reset
+        try:
+            utils.send_otp_for_password_reset(email, user_type="paitent")
+            status_code = status.HTTP_200_OK
+            response = {
+                "success": "True",
+                "code": 0,
+                "message": "OTP has been sent to your email.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+        except ValueError as e:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": str(e),
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+
+# *** Paitent (Confirm Reset Password) *** #
+class PaitentConfirmResetPasswordView(APIView):
+    """
+    This view allows a Paitent to reset their password after OTP verification.
+    """
+
+    def post(self, request):
+        otp = request.data.get("otp")
+        password = request.data.get("password")
+        password2 = request.data.get("password2")
+
+        if password != password2:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Passwords do not match.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        # Validate OTP
+        try:
+            otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
+        except models.OneTimeOTP.DoesNotExist:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "Invalid OTP.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        if otp_instance.is_expired():
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                "success": "False",
+                "code": 1,
+                "message": "OTP has expired.",
+                "status_code": status_code,
+                "data": "",
+            }
+            return Response(
+                response,
+                status=status_code,
+            )
+
+        paitent = otp_instance.user
+        password = password
+
+        paitent.set_password(password)
+        paitent.save()
+        utils.send_reset_password_confirm(paitent)
+
+        # Delete the used OTP
+        models.OneTimeOTP.objects.filter(user=paitent).delete()
+
+        paitent_data = serializers.UserSerializer(paitent).data
+        status_code = status.HTTP_200_OK
+        response = {
+            "success": "True",
+            "code": 0,
+            "message": "Confirm Reset Password Successfully.",
+            "status_code": status_code,
+            "data": paitent_data,
+        }
+        return Response(
+            response,
+            status=status_code,
+        )
+
+
+# *****************************************************************
+# =================================================================
+# ***  *** #
