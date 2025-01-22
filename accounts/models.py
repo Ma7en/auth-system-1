@@ -1,3 +1,4 @@
+#
 import uuid
 
 
@@ -120,7 +121,7 @@ class AdminProfile(models.Model):
     #     db_table = "admin_profile"
 
     def __str__(self):
-        return f"{self.id}): ({self.gender})"
+        return f"{self.id}): ({self.user.email})"
 
 
 def create_user_admin_profile(sender, instance, created, **kwargs):

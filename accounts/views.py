@@ -15,11 +15,11 @@ SECRET_KEY = settings.SECRET_KEY
 
 #
 from rest_framework import status
+from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import ValidationError, NotFound
 from rest_framework.views import APIView
-from rest_framework import generics
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
@@ -48,42 +48,31 @@ class AdminRegisterView(generics.CreateAPIView):
             # Step 2: Send OTP to the admin's email using the utility function
             try:
                 # Call the email-sending function
-                utils.send_otp_for_doctor(admin.email)
+                utils.send_otp_for_user(admin.email, "admin")
             except SMTPRecipientsRefused as e:
-                # Handle invalid email error
-                # error_messages = str(e.recipients)
-                # print(f"Error sending OTP to {admin.email}: {error_messages}")
                 raise ValidationError(
                     {
-                        "Error": "Invald Email",
+                        "Error": f"Error sending OTP to {admin.email}: {e}",
                     }
                 )
 
             # Step 3: Return success response
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Admin registered successfully, and We have sent an OTP to your Email!",
-                "status_code": status_code,
-                "data": admin_data,
-            }
-            return Response(
-                response,
-                status=status.HTTP_201_CREATED,
+            message = (
+                "Admin registered successfully, and We have sent an OTP to your Email!"
+            )
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_201_CREATED,
+                admin_data,
             )
 
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": serializer.errors,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        # Step 4:
+        message = serializer.errors
+        return utils.FunReturn(
+            1,
+            message,
+            status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -116,17 +105,20 @@ class AdminProfileView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance)
         admin_data = serializer.data
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Admin Profile retrieved successfully",
-            "status_code": status_code,
-            "data": admin_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        if admin_data["admin"]["is_admin"] == False:
+            message = "Admin Profile whit this id is not Found"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
+
+        message = "Admin Profile retrieved successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            admin_data,
         )
 
     def update(self, request, *args, **kwargs):
@@ -137,17 +129,12 @@ class AdminProfileView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
 
         admin_data = serializer.data
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Admin Profile updated successfully",
-            "status_code": status_code,
-            "data": admin_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Admin Profile updated successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            admin_data,
         )
 
 
@@ -159,17 +146,11 @@ class AdminResendOTPView(APIView):
         serializer = serializers.AdminResendOTPSerializer(data=request.data)
 
         if not serializer.is_valid():
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": serializer.errors,
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = serializer.errors
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         email = serializer.validated_data["email"]
@@ -178,45 +159,28 @@ class AdminResendOTPView(APIView):
 
             # Check if the doctor is already verified
             if user.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account has already been verified. Please go to the login page.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account has already been verified. Please go to the login page."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
+
             # Resend OTP if not verified
-            utils.send_otp_for_doctor(user.email)
+            utils.send_otp_for_user(user.email, "admin")
         except models.User.DoesNotExist:
-            status_code = status.HTTP_404_NOT_FOUND
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "No user found with this email.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "No user found with this email."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
             )
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "OTP has been resent to your email.",
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "OTP has been resent to your email."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
         )
 
 
@@ -229,82 +193,51 @@ class AdminVerifyAccountView(APIView):
 
         # Ensure OTP code is provided
         if not otp_code:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP code is required",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP code is required"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             # Retrieve the OTP record from OneTimeOTP model
             otp = models.OneTimeOTP.objects.get(otp=otp_code)
         except models.OneTimeOTP.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Invalid OTP Code",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Invalid OTP Code"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Check OTP expiration
         if otp.is_expired():
-            # otp.delete()
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP has expired",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has expired"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Determine if the OTP belongs to a User
         if otp.user:
             user = otp.user
         else:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "No associated user for this OTP code",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "No associated user for this OTP code"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Check if the user is already verified
         if user.is_verified:
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Email already verified",
-                "status_code": status_code,
-                "data": user,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Email already verified"
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
 
         # Mark user as verified
@@ -320,18 +253,12 @@ class AdminVerifyAccountView(APIView):
         otp.delete()
 
         doctor_data = serializers.UserSerializer(user).data
-
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": "Email verified successfully",
-            "status_code": status_code,
-            "data": doctor_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Email verified successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            doctor_data,
         )
 
 
@@ -345,34 +272,29 @@ class AdminLoginView(APIView):
             admin = serializer.validated_data  # Extract the validated admin
 
             if not admin.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account is not verified. Please verify your account to proceed.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account is not verified. Please verify your account to proceed."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Generate refresh token and include admin_id in the token payload
             refresh = RefreshToken.for_user(admin)
             refresh["admin_id"] = (
                 admin.id
-            )  # Explicitly add driver_id to the token payload
+            )  # Explicitly add admin_id to the token payload
 
             # Generate access token
             access_token = refresh.access_token
 
             admin_data = serializers.UserSerializer(admin).data
+
             status_code = status.HTTP_200_OK
             response = {
                 "success": "True",
                 "code": 0,
-                "message": "Invalid OTP Code",
+                "message": "Login successfully.",
                 "status_code": status_code,
                 "data": admin_data,
                 "access_token": str(access_token),
@@ -383,17 +305,11 @@ class AdminLoginView(APIView):
                 status=status_code,
             )
 
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": serializer.errors,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = serializer.errors
+        return utils.FunReturn(
+            1,
+            message,
+            status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -409,20 +325,7 @@ class AdminIDView(APIView):
                 message,
                 status.HTTP_404_NOT_FOUND,
             )
-            # status_code = status.HTTP_404_NOT_FOUND
-            # response = {
-            #     "success": "False",
-            #     "code": 1,
-            #     "message": "Admin not found.",
-            #     "status_code": status_code,
-            #     "data": "",
-            # }
-            # return Response(
-            #     response,
-            #     status=status_code,
-            # )
 
-        # تحويل الكائن إلى JSON باستخدام Serializer
         admin_data = serializers.UserSerializer(admin).data
 
         if admin_data["is_admin"] == False:
@@ -440,18 +343,6 @@ class AdminIDView(APIView):
             status.HTTP_200_OK,
             admin_data,
         )
-        # status_code = status.HTTP_200_OK
-        # response = {
-        #     "success": "True",
-        #     "code": 0,
-        #     "message": "Admin retrieved successfully.",
-        #     "status_code": status_code,
-        #     "data": admin_data,
-        # }
-        # return Response(
-        #     response,
-        #     status=status_code,
-        # )
 
 
 # *** Admin (Refresh) *** #
@@ -461,19 +352,13 @@ class AdminRefreshView(APIView):
             # Retrieve and decode the refresh token
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                status_code = status.HTTP_404_NOT_FOUND
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": {
-                        "refresh_token": "This field is required.",
-                    },
-                    "status_code": status_code,
-                    "data": "",
+                message = {
+                    "refresh_token": "This field is required.",
                 }
-                return Response(
-                    response,
-                    status=status_code,
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_400_BAD_REQUEST,
                 )
 
             # Decode the JWT token
@@ -490,29 +375,23 @@ class AdminRefreshView(APIView):
                     }
                 )
 
-            # Fetch the Driver object
+            # Fetch the Admin object
             admin = models.User.objects.get(id=user_id)
 
-            # Serialize the Driver object
+            # Serialize the Admin object
             admin_data = serializers.UserSerializer(admin).data
-
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Admin retrieved successfully.",
-                "status_code": status_code,
-                "data": admin_data,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Admin retrieved successfully."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                admin_data,
             )
 
         except models.User.DoesNotExist:
             raise ValidationError(
                 {
-                    "message": "Driver not found.",
+                    "message": "Admin not found.",
                 }
             )
 
@@ -572,17 +451,12 @@ class AdminChangePasswordView(APIView):
             utils.send_change_password_confirm(admin)
 
             admin_data = serializers.UserSerializer(admin).data
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Password changed successfully.",
-                "status_code": status_code,
-                "data": admin_data,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Password changed successfully."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                admin_data,
             )
 
         except jwt.ExpiredSignatureError:
@@ -590,19 +464,13 @@ class AdminChangePasswordView(APIView):
         except jwt.InvalidTokenError:
             raise ValidationError("Invalid token")
         except models.User.DoesNotExist:
-            raise ValidationError("Driver not found")
+            raise ValidationError("Admin not found")
         except ValidationError as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": e.detail,
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = e.detail
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -613,17 +481,11 @@ class AdminLogoutView(APIView):
             # Get the refresh token from the request
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                status_code = status.HTTP_400_BAD_REQUEST
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Refresh token not provided.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Refresh token not provided."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_400_BAD_REQUEST,
                 )
 
             # Decode the refresh token
@@ -631,62 +493,38 @@ class AdminLogoutView(APIView):
             admin_id_in_token = token.payload.get("user_id")
 
             if not admin_id_in_token:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Invalid token: user_id missing.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Invalid token: user_id missing."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Validate that the admin exists and matches the current authenticated admin
             admin = models.User.objects.filter(id=admin_id_in_token).first()
             if not admin:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Invalid token: admin not found.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Invalid token: admin not found."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Expire the token (logout the admin)
             token.set_exp()
 
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Logout successful.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Logout successful."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
         except Exception as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": str(e),
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = str(e)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -696,76 +534,46 @@ class AdminPasswordResetView(APIView):
         email = request.data.get("email")
 
         if not email:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Email is required.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Email is required."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             admin = models.User.objects.get(email=email)
             if not admin.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account is not verified. Please verify your account to proceed.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account is not verified. Please verify your account to proceed."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
         except models.User.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Admin with this email does not exist.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Admin with this email does not exist."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Send OTP for password reset
         try:
             utils.send_otp_for_password_reset(email, user_type="admin")
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "OTP has been sent to your email.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has been sent to your email."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
         except ValueError as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": str(e),
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = str(e)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -781,48 +589,30 @@ class AdminConfirmResetPasswordView(APIView):
         password2 = request.data.get("password2")
 
         if password != password2:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Passwords do not match.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Passwords do not match."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Validate OTP
         try:
             otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
         except models.OneTimeOTP.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Invalid OTP.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Invalid OTP."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         if otp_instance.is_expired():
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP has expired.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has expired."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         admin = otp_instance.user
@@ -836,17 +626,13 @@ class AdminConfirmResetPasswordView(APIView):
         models.OneTimeOTP.objects.filter(user=admin).delete()
 
         admin_data = serializers.UserSerializer(admin).data
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Confirm Reset Password Successfully.",
-            "status_code": status_code,
-            "data": admin_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+
+        message = "Confirm Reset Password Successfully."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            admin_data,
         )
 
 
@@ -869,42 +655,30 @@ class DoctorRegisterView(generics.CreateAPIView):
             # Step 2: Send OTP to the doctor's email using the utility function
             try:
                 # Call the email-sending function
-                utils.send_otp_for_doctor(doctor.email)
+                utils.send_otp_for_user(doctor.email, "doctor")
             except SMTPRecipientsRefused as e:
-                # Handle invalid email error
-                # error_messages = str(e.recipients)
-                # print(f"Error sending OTP to {doctor.email}: {error_messages}")
                 raise ValidationError(
                     {
-                        "Error": "Invald Email",
+                        "Error": f"Error sending OTP to {doctor.email}: {e}",
                     }
                 )
 
             # Step 3: Return success response
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Doctor registered successfully, and We have sent an OTP to your Email!",
-                "status_code": status_code,
-                "data": doctor_data,
-            }
-            return Response(
-                response,
-                status=status.HTTP_201_CREATED,
+            message = (
+                "Doctor registered successfully, and We have sent an OTP to your Email!"
+            )
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_201_CREATED,
+                doctor_data,
             )
 
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": serializer.errors,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = serializer.errors
+        return utils.FunReturn(
+            1,
+            message,
+            status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -937,17 +711,20 @@ class DoctorProfileView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance)
         doctor_data = serializer.data
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Doctor Profile retrieved successfully",
-            "status_code": status_code,
-            "data": doctor_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        if doctor_data["doctor"]["is_doctor"] == False:
+            message = "Doctor Profile whit this id is not Found"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
+
+        message = "Doctor Profile retrieved successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            doctor_data,
         )
 
     def update(self, request, *args, **kwargs):
@@ -958,17 +735,12 @@ class DoctorProfileView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
 
         doctor_data = serializer.data
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Doctor Profile updated successfully",
-            "status_code": status_code,
-            "data": doctor_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Doctor Profile updated successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            doctor_data,
         )
 
 
@@ -980,17 +752,11 @@ class DoctorResendOTPView(APIView):
         serializer = serializers.DoctorResendOTPSerializer(data=request.data)
 
         if not serializer.is_valid():
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": serializer.errors,
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = serializer.errors
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         email = serializer.validated_data["email"]
@@ -999,45 +765,28 @@ class DoctorResendOTPView(APIView):
 
             # Check if the doctor is already verified
             if user.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account has already been verified. Please go to the login page.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account has already been verified. Please go to the login page."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
+
             # Resend OTP if not verified
-            utils.send_otp_for_doctor(user.email)
+            utils.send_otp_for_user(user.email, "doctor")
         except models.User.DoesNotExist:
-            status_code = status.HTTP_404_NOT_FOUND
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "No user found with this email.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "No user found with this email."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
             )
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "OTP has been resent to your email.",
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "OTP has been resent to your email."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
         )
 
 
@@ -1050,82 +799,51 @@ class DoctorVerifyAccountView(APIView):
 
         # Ensure OTP code is provided
         if not otp_code:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP code is required",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP code is required"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             # Retrieve the OTP record from OneTimeOTP model
             otp = models.OneTimeOTP.objects.get(otp=otp_code)
         except models.OneTimeOTP.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Invalid OTP Code",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Invalid OTP Code"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Check OTP expiration
         if otp.is_expired():
-            # otp.delete()
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP has expired",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has expired"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Determine if the OTP belongs to a User
         if otp.user:
             user = otp.user
         else:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "No associated user for this OTP code",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "No associated user for this OTP code"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Check if the user is already verified
         if user.is_verified:
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Email already verified",
-                "status_code": status_code,
-                "data": user,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Email already verified"
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
 
         # Mark user as verified
@@ -1141,18 +859,12 @@ class DoctorVerifyAccountView(APIView):
         otp.delete()
 
         doctor_data = serializers.UserSerializer(user).data
-
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": "Email verified successfully",
-            "status_code": status_code,
-            "data": doctor_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Email verified successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            doctor_data,
         )
 
 
@@ -1166,24 +878,18 @@ class DoctorLoginView(APIView):
             doctor = serializer.validated_data  # Extract the validated doctor
 
             if not doctor.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account is not verified. Please verify your account to proceed.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account is not verified. Please verify your account to proceed."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Generate refresh token and include doctor_id in the token payload
             refresh = RefreshToken.for_user(doctor)
             refresh["doctor_id"] = (
                 doctor.id
-            )  # Explicitly add driver_id to the token payload
+            )  # Explicitly add doctor_id to the token payload
 
             # Generate access token
             access_token = refresh.access_token
@@ -1204,17 +910,11 @@ class DoctorLoginView(APIView):
                 status=status_code,
             )
 
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": serializer.errors,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = serializer.errors
+        return utils.FunReturn(
+            1,
+            message,
+            status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -1225,43 +925,29 @@ class DoctorIDView(APIView):
             doctor = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
             message = "Doctor not found."
-            return utils.FunReturn(1, message, status.HTTP_404_NOT_FOUND)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
 
-            # status_code = status.HTTP_404_NOT_FOUND
-            # response = {
-            #     "success": "False",
-            #     "code": 1,
-            #     "message": "Doctor not found.",
-            #     "status_code": status_code,
-            #     "data": "",
-            # }
-            # return Response(
-            #     response,
-            #     status=status_code,
-            # )
-
-        # تحويل الكائن إلى JSON باستخدام Serializer
         doctor_data = serializers.UserSerializer(doctor).data
 
         if doctor_data["is_doctor"] == False:
             message = "Doctor with this Id is not Found."
-            return utils.FunReturn(1, message, status.HTTP_404_NOT_FOUND)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
 
         message = "Doctor retrieved successfully."
-        return utils.FunReturn(0, message, status.HTTP_200_OK, doctor_data)
-
-        # status_code = status.HTTP_200_OK
-        # response = {
-        #     "success": "True",
-        #     "code": 0,
-        #     "message": "Doctor retrieved successfully.",
-        #     "status_code": status_code,
-        #     "data": doctor_data,
-        # }
-        # return Response(
-        #     response,
-        #     status=status_code,
-        # )
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            doctor_data,
+        )
 
 
 # *** Doctor (Refresh) *** #
@@ -1271,19 +957,13 @@ class DoctorRefreshView(APIView):
             # Retrieve and decode the refresh token
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                status_code = status.HTTP_404_NOT_FOUND
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": {
-                        "refresh_token": "This field is required.",
-                    },
-                    "status_code": status_code,
-                    "data": "",
+                message = {
+                    "refresh_token": "This field is required.",
                 }
-                return Response(
-                    response,
-                    status=status_code,
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_400_BAD_REQUEST,
                 )
 
             # Decode the JWT token
@@ -1300,29 +980,23 @@ class DoctorRefreshView(APIView):
                     }
                 )
 
-            # Fetch the Driver object
+            # Fetch the Doctor object
             doctor = models.User.objects.get(id=user_id)
 
-            # Serialize the Driver object
+            # Serialize the Doctor object
             doctor_data = serializers.UserSerializer(doctor).data
-
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Doctor retrieved successfully.",
-                "status_code": status_code,
-                "data": doctor_data,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Doctor retrieved successfully."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                doctor_data,
             )
 
         except models.User.DoesNotExist:
             raise ValidationError(
                 {
-                    "message": "Driver not found.",
+                    "message": "Doctor not found.",
                 }
             )
 
@@ -1382,17 +1056,12 @@ class DoctorChangePasswordView(APIView):
             utils.send_change_password_confirm(doctor)
 
             doctor_data = serializers.UserSerializer(doctor).data
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Password changed successfully.",
-                "status_code": status_code,
-                "data": doctor_data,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Password changed successfully."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                doctor_data,
             )
 
         except jwt.ExpiredSignatureError:
@@ -1400,19 +1069,13 @@ class DoctorChangePasswordView(APIView):
         except jwt.InvalidTokenError:
             raise ValidationError("Invalid token")
         except models.User.DoesNotExist:
-            raise ValidationError("Driver not found")
+            raise ValidationError("Doctor not found")
         except ValidationError as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": e.detail,
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = e.detail
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -1423,17 +1086,11 @@ class DoctorLogoutView(APIView):
             # Get the refresh token from the request
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                status_code = status.HTTP_400_BAD_REQUEST
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Refresh token not provided.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Refresh token not provided."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_400_BAD_REQUEST,
                 )
 
             # Decode the refresh token
@@ -1441,62 +1098,37 @@ class DoctorLogoutView(APIView):
             doctor_id_in_token = token.payload.get("user_id")
 
             if not doctor_id_in_token:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Invalid token: user_id missing.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Invalid token: user_id missing."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Validate that the doctor exists and matches the current authenticated doctor
             doctor = models.User.objects.filter(id=doctor_id_in_token).first()
             if not doctor:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Invalid token: Doctor not found.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Invalid token: Doctor not found."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Expire the token (logout the doctor)
             token.set_exp()
-
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Logout successful.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Logout successful."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
         except Exception as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": str(e),
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = str(e)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -1506,76 +1138,46 @@ class DoctorPasswordResetView(APIView):
         email = request.data.get("email")
 
         if not email:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Email is required.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Email is required."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             doctor = models.User.objects.get(email=email)
             if not doctor.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account is not verified. Please verify your account to proceed.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account is not verified. Please verify your account to proceed."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
         except models.User.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Doctor with this email does not exist.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Doctor with this email does not exist."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Send OTP for password reset
         try:
             utils.send_otp_for_password_reset(email, user_type="doctor")
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "OTP has been sent to your email.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has been sent to your email."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
         except ValueError as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": str(e),
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = str(e)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -1591,48 +1193,30 @@ class DoctorConfirmResetPasswordView(APIView):
         password2 = request.data.get("password2")
 
         if password != password2:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Passwords do not match.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Passwords do not match."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Validate OTP
         try:
             otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
         except models.OneTimeOTP.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Invalid OTP.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Invalid OTP."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         if otp_instance.is_expired():
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP has expired.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has expired."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         doctor = otp_instance.user
@@ -1646,17 +1230,12 @@ class DoctorConfirmResetPasswordView(APIView):
         models.OneTimeOTP.objects.filter(user=doctor).delete()
 
         doctor_data = serializers.UserSerializer(doctor).data
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Confirm Reset Password Successfully.",
-            "status_code": status_code,
-            "data": doctor_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Confirm Reset Password Successfully."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            doctor_data,
         )
 
 
@@ -1680,43 +1259,28 @@ class StaffRegisterView(generics.CreateAPIView):
             # Step 2: Send OTP to the staff's email using the utility function
             try:
                 # Call the email-sending function
-                utils.send_otp_for_doctor(staff.email)
+                utils.send_otp_for_user(staff.email, "staff")
             except SMTPRecipientsRefused as e:
-                # Handle invalid email error
-                # error_messages = str(e.recipients)
-                # print(f"Error sending OTP to {staff.email}: {error_messages}")
                 raise ValidationError(
                     {
-                        "Error": "Invald Email",
+                        "Error": f"Error sending OTP to {staff.email}: {e}",
                     }
                 )
 
             # Step 3: Return success response
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Staff registered successfully, and We have sent an OTP to your Email!",
-                "status_code": status_code,
-                "data": staff_data,
-            }
-            return Response(
-                response,
-                status=status.HTTP_201_CREATED,
+            message = (
+                "Staff registered successfully, and We have sent an OTP to your Email!"
+            )
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_201_CREATED,
+                staff_data,
             )
 
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": serializer.errors,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
-        )
+        # Step 4:
+        message = serializer.errors
+        return utils.FunReturn(1, message, status.HTTP_400_BAD_REQUEST)
 
 
 # *** Staff (Profile) *** #
@@ -1748,17 +1312,20 @@ class StaffProfileView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance)
         staff_data = serializer.data
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Staff Profile retrieved successfully",
-            "status_code": status_code,
-            "data": staff_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        if staff_data["staff"]["is_staff"] == False:
+            message = "Staff Profile whit this id is not Found"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
+
+        message = "Staff Profile retrieved successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            staff_data,
         )
 
     def update(self, request, *args, **kwargs):
@@ -1769,17 +1336,12 @@ class StaffProfileView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
 
         staff_data = serializer.data
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Staff Profile updated successfully",
-            "status_code": status_code,
-            "data": staff_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Staff Profile updated successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            staff_data,
         )
 
 
@@ -1791,17 +1353,11 @@ class StaffResendOTPView(APIView):
         serializer = serializers.StaffResendOTPSerializer(data=request.data)
 
         if not serializer.is_valid():
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": serializer.errors,
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = serializer.errors
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         email = serializer.validated_data["email"]
@@ -1810,45 +1366,28 @@ class StaffResendOTPView(APIView):
 
             # Check if the doctor is already verified
             if user.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account has already been verified. Please go to the login page.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account has already been verified. Please go to the login page."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
+
             # Resend OTP if not verified
-            utils.send_otp_for_doctor(user.email)
+            utils.send_otp_for_user(user.email, "staff")
         except models.User.DoesNotExist:
-            status_code = status.HTTP_404_NOT_FOUND
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "No user found with this email.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "No user found with this email."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
             )
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "OTP has been resent to your email.",
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "OTP has been resent to your email."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
         )
 
 
@@ -1861,82 +1400,52 @@ class StaffVerifyAccountView(APIView):
 
         # Ensure OTP code is provided
         if not otp_code:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP code is required",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP code is required"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             # Retrieve the OTP record from OneTimeOTP model
             otp = models.OneTimeOTP.objects.get(otp=otp_code)
         except models.OneTimeOTP.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Invalid OTP Code",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Invalid OTP Code"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Check OTP expiration
         if otp.is_expired():
-            # otp.delete()
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP has expired",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has expired"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Determine if the OTP belongs to a User
         if otp.user:
             user = otp.user
         else:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "No associated user for this OTP code",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "No associated user for this OTP code"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Check if the user is already verified
         if user.is_verified:
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Email already verified",
-                "status_code": status_code,
-                "data": user,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Email already verified"
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                user,
             )
 
         # Mark user as verified
@@ -1952,18 +1461,12 @@ class StaffVerifyAccountView(APIView):
         otp.delete()
 
         staff_data = serializers.UserSerializer(user).data
-
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": "Email verified successfully",
-            "status_code": status_code,
-            "data": staff_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Email verified successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            staff_data,
         )
 
 
@@ -1977,24 +1480,19 @@ class StaffLoginView(APIView):
             staff = serializer.validated_data  # Extract the validated staff
 
             if not staff.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account is not verified. Please verify your account to proceed.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account is not verified. Please verify your account to proceed."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
+                    staff_data,
                 )
 
             # Generate refresh token and include staff_id in the token payload
             refresh = RefreshToken.for_user(staff)
             refresh["staff_id"] = (
                 staff.id
-            )  # Explicitly add driver_id to the token payload
+            )  # Explicitly add staff_id to the token payload
 
             # Generate access token
             access_token = refresh.access_token
@@ -2015,17 +1513,11 @@ class StaffLoginView(APIView):
                 status=status_code,
             )
 
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": serializer.errors,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = serializer.errors
+        return utils.FunReturn(
+            1,
+            message,
+            status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -2035,37 +1527,29 @@ class StaffIDView(APIView):
         try:
             staff = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
-            status_code = status.HTTP_404_NOT_FOUND
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Staff not found.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Staff not found."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
             )
 
-        # تحويل الكائن إلى JSON باستخدام Serializer
         staff_data = serializers.UserSerializer(staff).data
 
         if staff_data["is_staff"] == False:
             message = "Staff with this Id is not Found."
-            return utils.FunReturn(1, message, status.HTTP_404_NOT_FOUND)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Staff retrieved successfully.",
-            "status_code": status_code,
-            "data": staff_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Staff retrieved successfully."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            staff_data,
         )
 
 
@@ -2076,19 +1560,13 @@ class StaffRefreshView(APIView):
             # Retrieve and decode the refresh token
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                status_code = status.HTTP_404_NOT_FOUND
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": {
-                        "refresh_token": "This field is required.",
-                    },
-                    "status_code": status_code,
-                    "data": "",
+                message = {
+                    "refresh_token": "This field is required.",
                 }
-                return Response(
-                    response,
-                    status=status_code,
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_404_NOT_FOUND,
                 )
 
             # Decode the JWT token
@@ -2110,18 +1588,12 @@ class StaffRefreshView(APIView):
 
             # Serialize the Staff object
             staff_data = serializers.UserSerializer(staff).data
-
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Staff retrieved successfully.",
-                "status_code": status_code,
-                "data": staff_data,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Staff retrieved successfully."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                staff_data,
             )
 
         except models.User.DoesNotExist:
@@ -2187,17 +1659,12 @@ class StaffChangePasswordView(APIView):
             utils.send_change_password_confirm(staff)
 
             staff_data = serializers.UserSerializer(staff).data
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Password changed successfully.",
-                "status_code": status_code,
-                "data": staff_data,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Password changed successfully."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                staff_data,
             )
 
         except jwt.ExpiredSignatureError:
@@ -2205,19 +1672,13 @@ class StaffChangePasswordView(APIView):
         except jwt.InvalidTokenError:
             raise ValidationError("Invalid token")
         except models.User.DoesNotExist:
-            raise ValidationError("Driver not found")
+            raise ValidationError("Staff not found")
         except ValidationError as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": e.detail,
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = e.detail
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -2228,17 +1689,11 @@ class StaffLogoutView(APIView):
             # Get the refresh token from the request
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                status_code = status.HTTP_400_BAD_REQUEST
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Refresh token not provided.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Refresh token not provided."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_400_BAD_REQUEST,
                 )
 
             # Decode the refresh token
@@ -2246,62 +1701,38 @@ class StaffLogoutView(APIView):
             staff_id_in_token = token.payload.get("user_id")
 
             if not staff_id_in_token:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Invalid token: user id missing.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Invalid token: user id missing."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Validate that the staff exists and matches the current authenticated staff
             staff = models.User.objects.filter(id=staff_id_in_token).first()
             if not staff:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Invalid token: staff not found.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Invalid token: staff not found."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Expire the token (logout the staff)
             token.set_exp()
 
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Logout successful.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Logout successful."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
         except Exception as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": str(e),
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = str(e)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -2311,76 +1742,45 @@ class StaffPasswordResetView(APIView):
         email = request.data.get("email")
 
         if not email:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Email is required.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Email is required."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
-
         try:
             staff = models.User.objects.get(email=email)
             if not staff.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account is not verified. Please verify your account to proceed.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account is not verified. Please verify your account to proceed."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
         except models.User.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Admin with this email does not exist.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Admin with this email does not exist."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Send OTP for password reset
         try:
             utils.send_otp_for_password_reset(email, user_type="staff")
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "OTP has been sent to your email.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has been sent to your email."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
         except ValueError as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": str(e),
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = str(e)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -2396,48 +1796,30 @@ class StaffConfirmResetPasswordView(APIView):
         password2 = request.data.get("password2")
 
         if password != password2:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Passwords do not match.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Passwords do not match."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Validate OTP
         try:
             otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
         except models.OneTimeOTP.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Invalid OTP.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Invalid OTP."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         if otp_instance.is_expired():
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP has expired.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has expired."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         staff = otp_instance.user
@@ -2451,17 +1833,12 @@ class StaffConfirmResetPasswordView(APIView):
         models.OneTimeOTP.objects.filter(user=staff).delete()
 
         staff_data = serializers.UserSerializer(staff).data
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Confirm Reset Password Successfully.",
-            "status_code": status_code,
-            "data": staff_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Confirm Reset Password Successfully."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            staff_data,
         )
 
 
@@ -2485,7 +1862,7 @@ class PaitentRegisterView(generics.CreateAPIView):
             # Step 2: Send OTP to the paitent's email using the utility function
             try:
                 # Call the email-sending function
-                utils.send_otp_for_doctor(paitent.email)
+                utils.send_otp_for_user(paitent.email, "paitent")
             except SMTPRecipientsRefused as e:
                 # Handle invalid email error
                 # error_messages = str(e.recipients)
@@ -2497,30 +1874,19 @@ class PaitentRegisterView(generics.CreateAPIView):
                 )
 
             # Step 3: Return success response
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "paitent registered successfully, and We have sent an OTP to your Email!",
-                "status_code": status_code,
-                "data": paitent_data,
-            }
-            return Response(
-                response,
-                status=status.HTTP_201_CREATED,
+            message = "paitent registered successfully, and We have sent an OTP to your Email!"
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                paitent_data,
             )
 
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": serializer.errors,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = serializer.errors
+        return utils.FunReturn(
+            1,
+            message,
+            status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -2553,17 +1919,20 @@ class PaitentProfileView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance)
         paitent_data = serializer.data
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Paitent Profile retrieved successfully",
-            "status_code": status_code,
-            "data": paitent_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        if paitent_data["paitent"]["is_paitent"] == False:
+            message = "Paitent Profile whit this id is not Found"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
+
+        message = "Paitent Profile retrieved successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            paitent_data,
         )
 
     def update(self, request, *args, **kwargs):
@@ -2574,17 +1943,12 @@ class PaitentProfileView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
 
         paitent_data = serializer.data
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Paitent Profile updated successfully",
-            "status_code": status_code,
-            "data": paitent_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Paitent Profile updated successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            paitent_data,
         )
 
 
@@ -2596,17 +1960,11 @@ class PaitentResendOTPView(APIView):
         serializer = serializers.PaitentResendOTPSerializer(data=request.data)
 
         if not serializer.is_valid():
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": serializer.errors,
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = serializer.errors
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         email = serializer.validated_data["email"]
@@ -2615,45 +1973,28 @@ class PaitentResendOTPView(APIView):
 
             # Check if the doctor is already verified
             if user.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account has already been verified. Please go to the login page.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account has already been verified. Please go to the login page."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
+
             # Resend OTP if not verified
-            utils.send_otp_for_doctor(user.email)
+            utils.send_otp_for_user(user.email, "paitent")
         except models.User.DoesNotExist:
-            status_code = status.HTTP_404_NOT_FOUND
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "No user found with this email.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "No user found with this email."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
             )
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "OTP has been resent to your email.",
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "OTP has been resent to your email."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
         )
 
 
@@ -2666,82 +2007,52 @@ class PaitentVerifyAccountView(APIView):
 
         # Ensure OTP code is provided
         if not otp_code:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP code is required",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP code is required"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         try:
             # Retrieve the OTP record from OneTimeOTP model
             otp = models.OneTimeOTP.objects.get(otp=otp_code)
         except models.OneTimeOTP.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Invalid OTP Code",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Invalid OTP Code"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Check OTP expiration
         if otp.is_expired():
-            # otp.delete()
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP has expired",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has expired"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Determine if the OTP belongs to a User
         if otp.user:
             user = otp.user
         else:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "No associated user for this OTP code",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "No associated user for this OTP code"
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Check if the user is already verified
         if user.is_verified:
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Email already verified",
-                "status_code": status_code,
-                "data": user,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Email verified successfully"
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                user,
             )
 
         # Mark user as verified
@@ -2757,18 +2068,12 @@ class PaitentVerifyAccountView(APIView):
         otp.delete()
 
         doctor_data = serializers.UserSerializer(user).data
-
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": "Email verified successfully",
-            "status_code": status_code,
-            "data": doctor_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Email verified successfully"
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            doctor_data,
         )
 
 
@@ -2782,24 +2087,18 @@ class PaitentLoginView(APIView):
             paitent = serializer.validated_data  # Extract the validated paitent
 
             if not paitent.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account is not verified. Please verify your account to proceed.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account is not verified. Please verify your account to proceed."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Generate refresh token and include paitent_id in the token payload
             refresh = RefreshToken.for_user(paitent)
             refresh["paitent_id"] = (
                 paitent.id
-            )  # Explicitly add driver_id to the token payload
+            )  # Explicitly add paitent_id to the token payload
 
             # Generate access token
             access_token = refresh.access_token
@@ -2820,17 +2119,11 @@ class PaitentLoginView(APIView):
                 status=status_code,
             )
 
-        status_code = status.HTTP_400_BAD_REQUEST
-        response = {
-            "success": "False",
-            "code": 1,
-            "message": serializer.errors,
-            "status_code": status_code,
-            "data": "",
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = serializer.errors
+        return utils.FunReturn(
+            1,
+            message,
+            status.HTTP_400_BAD_REQUEST,
         )
 
 
@@ -2840,17 +2133,11 @@ class PaitentIDView(APIView):
         try:
             paitent = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
-            status_code = status.HTTP_404_NOT_FOUND
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Paitent not found.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Paitent not found."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
             )
 
         # تحويل الكائن إلى JSON باستخدام Serializer
@@ -2858,19 +2145,18 @@ class PaitentIDView(APIView):
 
         if paitent_data["is_paitent"] == False:
             message = "Paitent with this Id is not Found."
-            return utils.FunReturn(1, message, status.HTTP_404_NOT_FOUND)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_404_NOT_FOUND,
+            )
 
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Paitent retrieved successfully.",
-            "status_code": status_code,
-            "data": paitent_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Paitent retrieved successfully."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            paitent_data,
         )
 
 
@@ -2881,19 +2167,15 @@ class PaitentRefreshView(APIView):
             # Retrieve and decode the refresh token
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                status_code = status.HTTP_404_NOT_FOUND
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": {
+                message = (
+                    {
                         "refresh_token": "This field is required.",
                     },
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                )
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_404_NOT_FOUND,
                 )
 
             # Decode the JWT token
@@ -2910,29 +2192,23 @@ class PaitentRefreshView(APIView):
                     }
                 )
 
-            # Fetch the Driver object
+            # Fetch the Paitent object
             paitent = models.User.objects.get(id=user_id)
 
-            # Serialize the Driver object
+            # Serialize the Paitent object
             paitent_data = serializers.UserSerializer(paitent).data
-
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "paitent retrieved successfully.",
-                "status_code": status_code,
-                "data": paitent_data,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "paitent retrieved successfully."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                paitent_data,
             )
 
         except models.User.DoesNotExist:
             raise ValidationError(
                 {
-                    "message": "Driver not found.",
+                    "message": "Paitent not found.",
                 }
             )
 
@@ -2992,37 +2268,25 @@ class PaitentChangePasswordView(APIView):
             utils.send_change_password_confirm(paitent)
 
             paitent_data = serializers.UserSerializer(paitent).data
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Password changed successfully.",
-                "status_code": status_code,
-                "data": paitent_data,
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Password changed successfully."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
+                paitent_data,
             )
-
         except jwt.ExpiredSignatureError:
             raise ValidationError("Token has expired")
         except jwt.InvalidTokenError:
             raise ValidationError("Invalid token")
         except models.User.DoesNotExist:
-            raise ValidationError("Driver not found")
+            raise ValidationError("Paitent not found")
         except ValidationError as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": e.detail,
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = e.detail
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -3033,17 +2297,11 @@ class PaitentLogoutView(APIView):
             # Get the refresh token from the request
             refresh_token = request.data.get("refresh_token")
             if not refresh_token:
-                status_code = status.HTTP_400_BAD_REQUEST
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Refresh token not provided.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Refresh token not provided."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_400_BAD_REQUEST,
                 )
 
             # Decode the refresh token
@@ -3051,62 +2309,38 @@ class PaitentLogoutView(APIView):
             paitent_id_in_token = token.payload.get("user_id")
 
             if not paitent_id_in_token:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Invalid token: user id missing.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Invalid token: user id missing."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Validate that the paitent exists and matches the current authenticated paitent
             paitent = models.User.objects.filter(id=paitent_id_in_token).first()
             if not paitent:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Invalid token: paitent not found.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Invalid token: paitent not found."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
             # Expire the token (logout the paitent)
             token.set_exp()
 
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "Logout successful.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Logout successful."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
         except Exception as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": str(e),
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = str(e)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -3116,76 +2350,45 @@ class PaitentPasswordResetView(APIView):
         email = request.data.get("email")
 
         if not email:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Email is required.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Email is required."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
-
         try:
             paitent = models.User.objects.get(email=email)
             if not paitent.is_verified:
-                status_code = status.HTTP_403_FORBIDDEN
-                response = {
-                    "success": "False",
-                    "code": 1,
-                    "message": "Your account is not verified. Please verify your account to proceed.",
-                    "status_code": status_code,
-                    "data": "",
-                }
-                return Response(
-                    response,
-                    status=status_code,
+                message = "Your account is not verified. Please verify your account to proceed."
+                return utils.FunReturn(
+                    1,
+                    message,
+                    status.HTTP_403_FORBIDDEN,
                 )
 
         except models.User.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Admin with this email does not exist.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Paitent with this email does not exist."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Send OTP for password reset
         try:
             utils.send_otp_for_password_reset(email, user_type="paitent")
-            status_code = status.HTTP_200_OK
-            response = {
-                "success": "True",
-                "code": 0,
-                "message": "OTP has been sent to your email.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has been sent to your email."
+            return utils.FunReturn(
+                0,
+                message,
+                status.HTTP_200_OK,
             )
         except ValueError as e:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": str(e),
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = str(e)
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
 
@@ -3201,48 +2404,30 @@ class PaitentConfirmResetPasswordView(APIView):
         password2 = request.data.get("password2")
 
         if password != password2:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Passwords do not match.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Passwords do not match."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         # Validate OTP
         try:
             otp_instance = models.OneTimeOTP.objects.get(otp=otp, user__isnull=False)
         except models.OneTimeOTP.DoesNotExist:
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "Invalid OTP.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "Invalid OTP."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         if otp_instance.is_expired():
-            status_code = status.HTTP_400_BAD_REQUEST
-            response = {
-                "success": "False",
-                "code": 1,
-                "message": "OTP has expired.",
-                "status_code": status_code,
-                "data": "",
-            }
-            return Response(
-                response,
-                status=status_code,
+            message = "OTP has expired."
+            return utils.FunReturn(
+                1,
+                message,
+                status.HTTP_400_BAD_REQUEST,
             )
 
         paitent = otp_instance.user
@@ -3256,17 +2441,12 @@ class PaitentConfirmResetPasswordView(APIView):
         models.OneTimeOTP.objects.filter(user=paitent).delete()
 
         paitent_data = serializers.UserSerializer(paitent).data
-        status_code = status.HTTP_200_OK
-        response = {
-            "success": "True",
-            "code": 0,
-            "message": "Confirm Reset Password Successfully.",
-            "status_code": status_code,
-            "data": paitent_data,
-        }
-        return Response(
-            response,
-            status=status_code,
+        message = "Confirm Reset Password Successfully."
+        return utils.FunReturn(
+            0,
+            message,
+            status.HTTP_200_OK,
+            paitent_data,
         )
 
 

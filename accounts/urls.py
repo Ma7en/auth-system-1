@@ -20,6 +20,12 @@ urlpatterns = [
         views.AdminRegisterView.as_view(),
         name="admin-register-api",
     ),
+    # (ID)
+    path(
+        "admin/<int:pk>/",
+        views.AdminIDView.as_view(),
+        name="admin-user-id",
+    ),
     # (Profile)
     path(
         "admin/profile/<int:pk>/",
@@ -43,12 +49,6 @@ urlpatterns = [
         "admin/login/",
         views.AdminLoginView.as_view(),
         name="admin-login-api",
-    ),
-    # (ID)
-    path(
-        "admin/<int:pk>/",
-        views.AdminIDView.as_view(),
-        name="admin-user-id",
     ),
     # (Refresh)
     path(
@@ -88,6 +88,12 @@ urlpatterns = [
         views.DoctorRegisterView.as_view(),
         name="doctor-register-api",
     ),
+    # (ID)
+    path(
+        "doctor/<int:pk>/",
+        views.DoctorIDView.as_view(),
+        name="doctor-user-id",
+    ),
     # (Profile)
     path(
         "doctor/profile/<int:pk>/",
@@ -111,12 +117,6 @@ urlpatterns = [
         "doctor/login/",
         views.DoctorLoginView.as_view(),
         name="doctor-login-api",
-    ),
-    # (ID)
-    path(
-        "doctor/<int:pk>/",
-        views.DoctorIDView.as_view(),
-        name="doctor-user-id",
     ),
     # (Refresh)
     path(
@@ -156,6 +156,12 @@ urlpatterns = [
         views.StaffRegisterView.as_view(),
         name="staff-register-api",
     ),
+    # (ID)
+    path(
+        "staff/<int:pk>/",
+        views.StaffIDView.as_view(),
+        name="staff-user-id",
+    ),
     # (Profile)
     path(
         "staff/profile/<int:pk>/",
@@ -179,12 +185,6 @@ urlpatterns = [
         "staff/login/",
         views.StaffLoginView.as_view(),
         name="staff-login-api",
-    ),
-    # (ID)
-    path(
-        "staff/<int:pk>/",
-        views.StaffIDView.as_view(),
-        name="staff-user-id",
     ),
     # (Refresh)
     path(
@@ -224,6 +224,12 @@ urlpatterns = [
         views.PaitentRegisterView.as_view(),
         name="paitent-register-api",
     ),
+    # (ID)
+    path(
+        "paitent/<int:pk>/",
+        views.PaitentIDView.as_view(),
+        name="paitent-user-id",
+    ),
     # (Profile)
     path(
         "paitent/profile/<int:pk>/",
@@ -247,12 +253,6 @@ urlpatterns = [
         "paitent/login/",
         views.PaitentLoginView.as_view(),
         name="paitent-login-api",
-    ),
-    # (ID)
-    path(
-        "paitent/<int:pk>/",
-        views.PaitentIDView.as_view(),
-        name="paitent-user-id",
     ),
     # (Refresh)
     path(

@@ -38,21 +38,34 @@ def generate_otp():
 # *****************************************************************
 # ================================================================
 # *** Send OTP For Doctor ***#
-def send_otp_for_doctor(email):
+def send_otp_for_user(email, type_user="user"):
     try:
-        doctor = models.User.objects.get(email=email)
+        user = models.User.objects.get(email=email)
         otp = generate_otp()
 
         # Create OTP record for the driver
-        otp_record = models.OneTimeOTP.objects.create(user=doctor, otp=otp)
+        otp_record = models.OneTimeOTP.objects.create(user=user, otp=otp)
 
         # Send OTP to driver's email
         context = {
-            "name": doctor.first_name,
+            "name": user.first_name,
             "OTP": otp,
             "current_year": current_year,
         }
-        subject = "Doctor Confirmation Email"
+
+        # if type_user == "user":
+        #     subject = "User Confirmation Email"
+        # elif type_user == "admin":
+        #     subject = "Admin Confirmation Email"
+        # elif type_user == "doctor":
+        #     subject = "Doctor Confirmation Email"
+        # elif type_user == "staff":
+        #     subject = "Staff Confirmation Email"
+        # elif type_user == "paitent":
+        #     subject = "Paitent Confirmation Email"
+
+        subject = f"{type_user.capitalize() or "User".capitalize()} Confirmation Email"
+
         template = "send_otp.html"
         html_content = render_to_string(template, context)
         plain_message = strip_tags(html_content)
@@ -61,19 +74,23 @@ def send_otp_for_doctor(email):
             subject,
             plain_message,
             settings.EMAIL_HOST_USER,
-            [doctor.email],
+            [user.email],
             html_message=html_content,
             fail_silently=False,
         )
 
-        logger.info(f"OTP sent to driver {doctor.email}. OTP: {otp}")
+        # logger.info(f"OTP sent to driver {doctor.email}. OTP: {otp}")
 
     except models.User.DoesNotExist:
-        logger.error(f"Driver with email {email} not found.")
-        raise ValueError(_(f"Driver with email {email} does not exist"))
+        # logger.error(f"Driver with email {email} not found.")
+        raise ValueError(
+            _(f"({type_user.capitalize()}) with email {email} does not exist")
+        )
     except Exception as e:
-        logger.error(f"Error sending OTP to driver {email}: {str(e)}")
-        raise ValueError(_(f"Error sending OTP to driver {email}: {str(e)}"))
+        # logger.error(f"Error sending OTP to driver {email}: {str(e)}")
+        raise ValueError(
+            _(f"Error sending OTP to ({type_user.capitalize()}) {email}: {str(e)}")
+        )
 
 
 # *****************************************************************
@@ -108,19 +125,24 @@ def send_verification_email(user, otp):
 # *****************************************************************
 # # ================================================================
 # *** Send OTP For Password Reset ***#
-def send_otp_for_password_reset(email, user_type):
+def send_otp_for_password_reset(email, user_type="user"):
     otp = generate_otp()
 
-    if user_type == "doctor":
-        try:
-            user = models.User.objects.get(email=email)
-        except models.User.DoesNotExist:
-            raise ValueError(f"Doctor with email {email} not found")
-    elif user_type == "passenger":
-        try:
-            user = models.User.objects.get(email=email)
-        except models.User.DoesNotExist:
-            raise ValueError(f"Passenger with email {email} not found")
+    # if user_type == "doctor":
+    #     try:
+    #         user = models.User.objects.get(email=email)
+    #     except models.User.DoesNotExist:
+    #         raise ValueError(f"Doctor with email {email} not found")
+    # elif user_type == "passenger":
+    #     try:
+    #         user = models.User.objects.get(email=email)
+    #     except models.User.DoesNotExist:
+    #         raise ValueError(f"Passenger with email {email} not found")
+
+    try:
+        user = models.User.objects.get(email=email)
+    except models.User.DoesNotExist:
+        raise ValueError(f"({user_type.capitalize()}) with email ({email}) not found")
 
     # Create OTP record
     otp_record = models.OneTimeOTP.objects.create(otp=otp, user=user)

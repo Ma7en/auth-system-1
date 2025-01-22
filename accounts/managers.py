@@ -1,6 +1,3 @@
-import uuid
-
-
 #
 from django.contrib.auth.models import BaseUserManager
 from django.utils.translation import gettext_lazy as _
@@ -41,7 +38,7 @@ class UserManager(BaseUserManager):
         """
         if password is None:
             # raise TypeError(_("Superusers must have a password."))
-            raise ValueError(_("Superusers must have a password."))
+            raise ValueError(_("Superuser must have a password."))
 
         user = self.create_user(email, password, **extra_fields)
         user.is_superuser = True
@@ -60,14 +57,13 @@ class UserManager(BaseUserManager):
         user = self.create_user(email, password, **extra_fields)
         user.is_admin = True
         user.is_superuser = True
-        user.is_staff = True
         user.save()
         return user
 
     # =================================================================
     def create_doctoruser(self, email, password=None, **extra_fields):
         if password is None:
-            raise ValueError(_("Doctors must have a password"))
+            raise ValueError(_("Doctor must have a password"))
 
         user = self.create_user(email, password, **extra_fields)
         user.is_doctor = True

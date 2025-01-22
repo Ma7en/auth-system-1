@@ -50,6 +50,7 @@ class AdminProfileSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
+        # print("response", response) # response {'id': 1, 'gender': None, 'image': 'http://127.0.0.1:8000/media/user/default-user.png', 'phone_number': None, 'age': None, 'created_at': '2025-01-22T14:08:28.986408Z', 'user': 1}
         response["admin"] = UserSerializer(instance.user).data
         return response
 
@@ -120,15 +121,15 @@ class AdminLoginSerializer(serializers.Serializer):
             # Fetch the Admin by email
             admin = models.User.objects.get(email=email)
         except models.User.DoesNotExist:
-            raise AuthenticationFailed(_("Invalid Email or Password."))
+            raise AuthenticationFailed(_("Invalid Email or Password.."))
 
         # Authenticate admin by verifying the password
         if not admin.check_password(password):
-            raise AuthenticationFailed(_("Invalid Email or Password."))
+            raise AuthenticationFailed(_("Invalid Email or Password.."))
 
         # Check if the admin is active
         if not admin.is_active:
-            raise AuthenticationFailed(_("admin account is deactivated."))
+            raise AuthenticationFailed(_("admin account is deactivated..."))
 
         return admin
 
