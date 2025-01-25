@@ -8,6 +8,8 @@ from smtplib import SMTPRecipientsRefused
 from django.conf import settings
 from django.contrib.auth.hashers import check_password
 from django.utils.translation import gettext_lazy as _
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 SECRET_KEY = settings.SECRET_KEY
@@ -1844,29 +1846,29 @@ class StaffConfirmResetPasswordView(APIView):
 
 # *****************************************************************
 # =================================================================
-# *** 4) Paitent *** #
-# *** Paitent (Register) *** #
-class PaitentRegisterView(generics.CreateAPIView):
+# *** 4) Patient *** #
+# *** Patient (Register) *** #
+class PatientRegisterView(generics.CreateAPIView):
     queryset = models.User.objects.all()
-    serializer_class = serializers.PaitentRegisterSerializer
+    serializer_class = serializers.PatientRegisterSerializer
     permission_classes = (AllowAny,)
 
     def post(self, request):
-        serializer = serializers.PaitentRegisterSerializer(data=request.data)
+        serializer = serializers.PatientRegisterSerializer(data=request.data)
 
         if serializer.is_valid():
             # Step 1: Save the user data using the serializer's create method
-            paitent = serializer.save()
-            paitent_data = serializers.UserSerializer(paitent).data
+            patient = serializer.save()
+            patient_data = serializers.UserSerializer(patient).data
 
-            # Step 2: Send OTP to the paitent's email using the utility function
+            # Step 2: Send OTP to the patient's email using the utility function
             try:
                 # Call the email-sending function
-                utils.send_otp_for_user(paitent.email, "paitent")
+                utils.send_otp_for_user(patient.email, "patient")
             except SMTPRecipientsRefused as e:
                 # Handle invalid email error
                 # error_messages = str(e.recipients)
-                # print(f"Error sending OTP to {paitent.email}: {error_messages}")
+                # print(f"Error sending OTP to {patient.email}: {error_messages}")
                 raise ValidationError(
                     {
                         "Error": "Invald Email",
@@ -1874,12 +1876,12 @@ class PaitentRegisterView(generics.CreateAPIView):
                 )
 
             # Step 3: Return success response
-            message = "paitent registered successfully, and We have sent an OTP to your Email!"
+            message = "patient registered successfully, and We have sent an OTP to your Email!"
             return utils.FunReturn(
                 0,
                 message,
                 status.HTTP_200_OK,
-                paitent_data,
+                patient_data,
             )
 
         message = serializer.errors
@@ -1890,25 +1892,25 @@ class PaitentRegisterView(generics.CreateAPIView):
         )
 
 
-# *** Paitent (Profile) *** #
-class PaitentProfileView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = serializers.PaitentProfileSerializer
+# *** Patient (Profile) *** #
+class PatientProfileView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = serializers.PatientProfileSerializer
 
     def get_queryset(self):
-        return models.PaitentProfile.objects.all()
+        return models.PatientProfile.objects.all()
 
     def get_object(self):
         try:
-            paitent_pk = self.kwargs["pk"]  # 1
-            paitent_profile = models.PaitentProfile.objects.get(user=paitent_pk)
-            return paitent_profile
-        except models.PaitentProfile.DoesNotExist:
+            patient_pk = self.kwargs["pk"]  # 1
+            patient_profile = models.PatientProfile.objects.get(user=patient_pk)
+            return patient_profile
+        except models.PatientProfile.DoesNotExist:
             status_code = status.HTTP_404_NOT_FOUND
             raise NotFound(
                 {
                     "success": "False",
                     "code": 1,
-                    "message": "Paitent Profile not found",
+                    "message": "Patient Profile not found",
                     "status_code": status_code,
                     "data": "",
                 }
@@ -1917,22 +1919,22 @@ class PaitentProfileView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        paitent_data = serializer.data
+        patient_data = serializer.data
 
-        if paitent_data["paitent"]["is_paitent"] == False:
-            message = "Paitent Profile whit this id is not Found"
+        if patient_data["patient"]["is_patient"] == False:
+            message = "Patient Profile whit this id is not Found"
             return utils.FunReturn(
                 1,
                 message,
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Paitent Profile retrieved successfully"
+        message = "Patient Profile retrieved successfully"
         return utils.FunReturn(
             0,
             message,
             status.HTTP_200_OK,
-            paitent_data,
+            patient_data,
         )
 
     def update(self, request, *args, **kwargs):
@@ -1942,22 +1944,22 @@ class PaitentProfileView(generics.RetrieveUpdateDestroyAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        paitent_data = serializer.data
-        message = "Paitent Profile updated successfully"
+        patient_data = serializer.data
+        message = "Patient Profile updated successfully"
         return utils.FunReturn(
             0,
             message,
             status.HTTP_200_OK,
-            paitent_data,
+            patient_data,
         )
 
 
-# *** Paitent (Resend OTP) *** #
-class PaitentResendOTPView(APIView):
+# *** Patient (Resend OTP) *** #
+class PatientResendOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = serializers.PaitentResendOTPSerializer(data=request.data)
+        serializer = serializers.PatientResendOTPSerializer(data=request.data)
 
         if not serializer.is_valid():
             message = serializer.errors
@@ -1981,7 +1983,7 @@ class PaitentResendOTPView(APIView):
                 )
 
             # Resend OTP if not verified
-            utils.send_otp_for_user(user.email, "paitent")
+            utils.send_otp_for_user(user.email, "patient")
         except models.User.DoesNotExist:
             message = "No user found with this email."
             return utils.FunReturn(
@@ -1998,8 +2000,8 @@ class PaitentResendOTPView(APIView):
         )
 
 
-# *** Paitent (Verify Account) *** #
-class PaitentVerifyAccountView(APIView):
+# *** Patient (Verify Account) *** #
+class PatientVerifyAccountView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -2077,16 +2079,16 @@ class PaitentVerifyAccountView(APIView):
         )
 
 
-# *** Paitent (Login) *** #
-class PaitentLoginView(APIView):
+# *** Patient (Login) *** #
+class PatientLoginView(APIView):
     def post(self, request):
-        # Deserialize the paitent login data
-        serializer = serializers.PaitentLoginSerializer(data=request.data)
+        # Deserialize the patient login data
+        serializer = serializers.PatientLoginSerializer(data=request.data)
 
         if serializer.is_valid():
-            paitent = serializer.validated_data  # Extract the validated paitent
+            patient = serializer.validated_data  # Extract the validated patient
 
-            if not paitent.is_verified:
+            if not patient.is_verified:
                 message = "Your account is not verified. Please verify your account to proceed."
                 return utils.FunReturn(
                     1,
@@ -2094,23 +2096,23 @@ class PaitentLoginView(APIView):
                     status.HTTP_403_FORBIDDEN,
                 )
 
-            # Generate refresh token and include paitent_id in the token payload
-            refresh = RefreshToken.for_user(paitent)
-            refresh["paitent_id"] = (
-                paitent.id
-            )  # Explicitly add paitent_id to the token payload
+            # Generate refresh token and include patient_id in the token payload
+            refresh = RefreshToken.for_user(patient)
+            refresh["patient_id"] = (
+                patient.id
+            )  # Explicitly add patient_id to the token payload
 
             # Generate access token
             access_token = refresh.access_token
 
-            paitent_data = serializers.UserSerializer(paitent).data
+            patient_data = serializers.UserSerializer(patient).data
             status_code = status.HTTP_200_OK
             response = {
                 "success": "True",
                 "code": 0,
                 "message": "Invalid OTP Code",
                 "status_code": status_code,
-                "data": paitent_data,
+                "data": patient_data,
                 "access_token": str(access_token),
                 "refresh_token": str(refresh),
             }
@@ -2127,13 +2129,13 @@ class PaitentLoginView(APIView):
         )
 
 
-# *** Paitent (ID) *** #
-class PaitentIDView(APIView):
+# *** Patient (ID) *** #
+class PatientIDView(APIView):
     def get(self, request, pk):
         try:
-            paitent = models.User.objects.get(pk=pk)
+            patient = models.User.objects.get(pk=pk)
         except models.User.DoesNotExist:
-            message = "Paitent not found."
+            message = "Patient not found."
             return utils.FunReturn(
                 1,
                 message,
@@ -2141,27 +2143,27 @@ class PaitentIDView(APIView):
             )
 
         # تحويل الكائن إلى JSON باستخدام Serializer
-        paitent_data = serializers.UserSerializer(paitent).data
+        patient_data = serializers.UserSerializer(patient).data
 
-        if paitent_data["is_paitent"] == False:
-            message = "Paitent with this Id is not Found."
+        if patient_data["is_patient"] == False:
+            message = "Patient with this Id is not Found."
             return utils.FunReturn(
                 1,
                 message,
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Paitent retrieved successfully."
+        message = "Patient retrieved successfully."
         return utils.FunReturn(
             0,
             message,
             status.HTTP_200_OK,
-            paitent_data,
+            patient_data,
         )
 
 
-# *** Paitent (Refresh) *** #
-class PaitentRefreshView(APIView):
+# *** Patient (Refresh) *** #
+class PatientRefreshView(APIView):
     def post(self, request):
         try:
             # Retrieve and decode the refresh token
@@ -2192,23 +2194,23 @@ class PaitentRefreshView(APIView):
                     }
                 )
 
-            # Fetch the Paitent object
-            paitent = models.User.objects.get(id=user_id)
+            # Fetch the Patient object
+            patient = models.User.objects.get(id=user_id)
 
-            # Serialize the Paitent object
-            paitent_data = serializers.UserSerializer(paitent).data
-            message = "paitent retrieved successfully."
+            # Serialize the Patient object
+            patient_data = serializers.UserSerializer(patient).data
+            message = "patient retrieved successfully."
             return utils.FunReturn(
                 0,
                 message,
                 status.HTTP_200_OK,
-                paitent_data,
+                patient_data,
             )
 
         except models.User.DoesNotExist:
             raise ValidationError(
                 {
-                    "message": "Paitent not found.",
+                    "message": "Patient not found.",
                 }
             )
 
@@ -2234,8 +2236,8 @@ class PaitentRefreshView(APIView):
             )
 
 
-# *** Paitent (Change Password) *** #
-class PaitentChangePasswordView(APIView):
+# *** Patient (Change Password) *** #
+class PatientChangePasswordView(APIView):
     def post(self, request):
         try:
             # Retrieve and decode the refresh token
@@ -2245,15 +2247,15 @@ class PaitentChangePasswordView(APIView):
                 raise ValidationError({"refresh_token": "This field is required."})
 
             payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=["HS256"])
-            paitent_id = payload.get("paitent_id")
+            patient_id = payload.get("patient_id")
 
-            # Fetch the paitent
-            paitent = models.User.objects.get(id=paitent_id)
+            # Fetch the patient
+            patient = models.User.objects.get(id=patient_id)
 
             # Validate old password
             old_password = request.data.get("old_password")
 
-            if not old_password or not check_password(old_password, paitent.password):
+            if not old_password or not check_password(old_password, patient.password):
                 raise ValidationError({"message": "Old password is incorrect."})
 
             # Validate new passwords
@@ -2263,24 +2265,24 @@ class PaitentChangePasswordView(APIView):
             # validate_password(new_password, confirm_password)
 
             # Change password
-            paitent.set_password(new_password)
-            paitent.save()
-            utils.send_change_password_confirm(paitent)
+            patient.set_password(new_password)
+            patient.save()
+            utils.send_change_password_confirm(patient)
 
-            paitent_data = serializers.UserSerializer(paitent).data
+            patient_data = serializers.UserSerializer(patient).data
             message = "Password changed successfully."
             return utils.FunReturn(
                 0,
                 message,
                 status.HTTP_200_OK,
-                paitent_data,
+                patient_data,
             )
         except jwt.ExpiredSignatureError:
             raise ValidationError("Token has expired")
         except jwt.InvalidTokenError:
             raise ValidationError("Invalid token")
         except models.User.DoesNotExist:
-            raise ValidationError("Paitent not found")
+            raise ValidationError("Patient not found")
         except ValidationError as e:
             message = e.detail
             return utils.FunReturn(
@@ -2290,8 +2292,8 @@ class PaitentChangePasswordView(APIView):
             )
 
 
-# *** Paitent (Logout) *** #
-class PaitentLogoutView(APIView):
+# *** Patient (Logout) *** #
+class PatientLogoutView(APIView):
     def post(self, request):
         try:
             # Get the refresh token from the request
@@ -2306,9 +2308,9 @@ class PaitentLogoutView(APIView):
 
             # Decode the refresh token
             token = RefreshToken(refresh_token)
-            paitent_id_in_token = token.payload.get("user_id")
+            patient_id_in_token = token.payload.get("user_id")
 
-            if not paitent_id_in_token:
+            if not patient_id_in_token:
                 message = "Invalid token: user id missing."
                 return utils.FunReturn(
                     1,
@@ -2316,17 +2318,17 @@ class PaitentLogoutView(APIView):
                     status.HTTP_403_FORBIDDEN,
                 )
 
-            # Validate that the paitent exists and matches the current authenticated paitent
-            paitent = models.User.objects.filter(id=paitent_id_in_token).first()
-            if not paitent:
-                message = "Invalid token: paitent not found."
+            # Validate that the patient exists and matches the current authenticated patient
+            patient = models.User.objects.filter(id=patient_id_in_token).first()
+            if not patient:
+                message = "Invalid token: patient not found."
                 return utils.FunReturn(
                     1,
                     message,
                     status.HTTP_403_FORBIDDEN,
                 )
 
-            # Expire the token (logout the paitent)
+            # Expire the token (logout the patient)
             token.set_exp()
 
             message = "Logout successful."
@@ -2344,8 +2346,8 @@ class PaitentLogoutView(APIView):
             )
 
 
-# *** Paitent (Reset Password) *** #
-class PaitentPasswordResetView(APIView):
+# *** Patient (Reset Password) *** #
+class PatientPasswordResetView(APIView):
     def post(self, request):
         email = request.data.get("email")
 
@@ -2357,8 +2359,8 @@ class PaitentPasswordResetView(APIView):
                 status.HTTP_400_BAD_REQUEST,
             )
         try:
-            paitent = models.User.objects.get(email=email)
-            if not paitent.is_verified:
+            patient = models.User.objects.get(email=email)
+            if not patient.is_verified:
                 message = "Your account is not verified. Please verify your account to proceed."
                 return utils.FunReturn(
                     1,
@@ -2367,7 +2369,7 @@ class PaitentPasswordResetView(APIView):
                 )
 
         except models.User.DoesNotExist:
-            message = "Paitent with this email does not exist."
+            message = "Patient with this email does not exist."
             return utils.FunReturn(
                 1,
                 message,
@@ -2376,7 +2378,7 @@ class PaitentPasswordResetView(APIView):
 
         # Send OTP for password reset
         try:
-            utils.send_otp_for_password_reset(email, user_type="paitent")
+            utils.send_otp_for_password_reset(email, user_type="patient")
             message = "OTP has been sent to your email."
             return utils.FunReturn(
                 0,
@@ -2392,10 +2394,10 @@ class PaitentPasswordResetView(APIView):
             )
 
 
-# *** Paitent (Confirm Reset Password) *** #
-class PaitentConfirmResetPasswordView(APIView):
+# *** Patient (Confirm Reset Password) *** #
+class PatientConfirmResetPasswordView(APIView):
     """
-    This view allows a Paitent to reset their password after OTP verification.
+    This view allows a Patient to reset their password after OTP verification.
     """
 
     def post(self, request):
@@ -2430,23 +2432,23 @@ class PaitentConfirmResetPasswordView(APIView):
                 status.HTTP_400_BAD_REQUEST,
             )
 
-        paitent = otp_instance.user
+        patient = otp_instance.user
         password = password
 
-        paitent.set_password(password)
-        paitent.save()
-        utils.send_reset_password_confirm(paitent)
+        patient.set_password(password)
+        patient.save()
+        utils.send_reset_password_confirm(patient)
 
         # Delete the used OTP
-        models.OneTimeOTP.objects.filter(user=paitent).delete()
+        models.OneTimeOTP.objects.filter(user=patient).delete()
 
-        paitent_data = serializers.UserSerializer(paitent).data
+        patient_data = serializers.UserSerializer(patient).data
         message = "Confirm Reset Password Successfully."
         return utils.FunReturn(
             0,
             message,
             status.HTTP_200_OK,
-            paitent_data,
+            patient_data,
         )
 
 

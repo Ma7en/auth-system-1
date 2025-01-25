@@ -50,7 +50,11 @@ class AdminProfileSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
-        # print("response", response) # response {'id': 1, 'gender': None, 'image': 'http://127.0.0.1:8000/media/user/default-user.png', 'phone_number': None, 'age': None, 'created_at': '2025-01-22T14:08:28.986408Z', 'user': 1}
+        # print("\n\n\n\n")
+        # print(
+        #     "response", response
+        # )  # response {'id': 1, 'gender': None, 'image': 'http://127.0.0.1:8000/media/user/default-user.png', 'phone_number': None, 'age': None, 'created_at': '2025-01-22T14:08:28.986408Z', 'user': 1}
+        # print("\n\n\n\n")
         response["admin"] = UserSerializer(instance.user).data
         return response
 
@@ -323,20 +327,20 @@ class StaffLoginSerializer(serializers.Serializer):
 
 # *****************************************************************
 # =================================================================
-# *** Paitent Profile *** #
-class PaitentProfileSerializer(serializers.ModelSerializer):
+# *** Patient Profile *** #
+class PatientProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = models.PaitentProfile
+        model = models.PatientProfile
         fields = "__all__"
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
-        response["paitent"] = UserSerializer(instance.user).data
+        response["patient"] = UserSerializer(instance.user).data
         return response
 
 
-# *** Paitent Register *** #
-class PaitentRegisterSerializer(serializers.ModelSerializer):
+# *** Patient Register *** #
+class PatientRegisterSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(write_only=True)
 
     class Meta:
@@ -367,12 +371,12 @@ class PaitentRegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        user = models.User.objects.create_paitentuser(**validated_data)
+        user = models.User.objects.create_patientuser(**validated_data)
         return user
 
 
-# *** Paitent (Resend OTP) *** #
-class PaitentResendOTPSerializer(serializers.ModelSerializer):
+# *** Patient (Resend OTP) *** #
+class PatientResendOTPSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True)
 
     class Meta:
@@ -384,12 +388,12 @@ class PaitentResendOTPSerializer(serializers.ModelSerializer):
         Ensure the email exists in the User model.
         """
         if not models.User.objects.filter(email=value).exists():
-            raise serializers.ValidationError(_("No paitent found with this email."))
+            raise serializers.ValidationError(_("No patient found with this email."))
         return value
 
 
-# *** Paitent (Login) *** #
-class PaitentLoginSerializer(serializers.Serializer):
+# *** Patient (Login) *** #
+class PatientLoginSerializer(serializers.Serializer):
     email = serializers.CharField(max_length=500)
     password = serializers.CharField(write_only=True)
 
@@ -398,20 +402,20 @@ class PaitentLoginSerializer(serializers.Serializer):
         password = attrs.get("password")
 
         try:
-            # Fetch the paitent by email
-            paitent = models.User.objects.get(email=email)
+            # Fetch the patient by email
+            patient = models.User.objects.get(email=email)
         except models.User.DoesNotExist:
             raise AuthenticationFailed(_("Invalid Email or Password."))
 
-        # Authenticate paitent by verifying the password
-        if not paitent.check_password(password):
+        # Authenticate patient by verifying the password
+        if not patient.check_password(password):
             raise AuthenticationFailed(_("Invalid Email or Password."))
 
-        # Check if the paitent is active
-        if not paitent.is_active:
-            raise AuthenticationFailed(_("paitent account is deactivated."))
+        # Check if the patient is active
+        if not patient.is_active:
+            raise AuthenticationFailed(_("patient account is deactivated."))
 
-        return paitent
+        return patient
 
 
 # *****************************************************************

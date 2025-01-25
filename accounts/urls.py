@@ -217,72 +217,72 @@ urlpatterns = [
         name="staff-confirm-reset-password",
     ),
     # ================================================================
-    # *** 4) Paitent *** #
+    # *** 4) Patient *** #
     # (Registration)
     path(
-        "paitent/register/",
-        views.PaitentRegisterView.as_view(),
-        name="paitent-register-api",
+        "patient/register/",
+        views.PatientRegisterView.as_view(),
+        name="patient-register-api",
     ),
     # (ID)
     path(
-        "paitent/<int:pk>/",
-        views.PaitentIDView.as_view(),
-        name="paitent-user-id",
+        "patient/<int:pk>/",
+        views.PatientIDView.as_view(),
+        name="patient-user-id",
     ),
     # (Profile)
     path(
-        "paitent/profile/<int:pk>/",
-        views.PaitentProfileView.as_view(),
-        name="paitent-profile-id",
+        "patient/profile/<int:pk>/",
+        views.PatientProfileView.as_view(),
+        name="patient-profile-id",
     ),
     # (Resend OTP)
     path(
-        "paitent/resend-otp/",
-        views.PaitentResendOTPView.as_view(),
-        name="paitent-resend-otp-api",
+        "patient/resend-otp/",
+        views.PatientResendOTPView.as_view(),
+        name="patient-resend-otp-api",
     ),
     # (Verify Account)
     path(
-        "paitent/verify-account/",
-        views.PaitentVerifyAccountView.as_view(),
+        "patient/verify-account/",
+        views.PatientVerifyAccountView.as_view(),
         name="verify-account-api",
     ),
     # (Login)
     path(
-        "paitent/login/",
-        views.PaitentLoginView.as_view(),
-        name="paitent-login-api",
+        "patient/login/",
+        views.PatientLoginView.as_view(),
+        name="patient-login-api",
     ),
     # (Refresh)
     path(
-        "paitent/refresh/",
-        views.PaitentRefreshView.as_view(),
-        name="paitent-user-refresh",
+        "patient/refresh/",
+        views.PatientRefreshView.as_view(),
+        name="patient-user-refresh",
     ),
     # (Change Password)
     path(
-        "paitent/change-password/",
-        views.PaitentChangePasswordView.as_view(),
-        name="paitent-change-password-api",
+        "patient/change-password/",
+        views.PatientChangePasswordView.as_view(),
+        name="patient-change-password-api",
     ),
     # (Logout)
     path(
-        "paitent/logout/",
-        views.PaitentLogoutView.as_view(),
-        name="paitent-logout-api",
+        "patient/logout/",
+        views.PatientLogoutView.as_view(),
+        name="patient-logout-api",
     ),
     # (Reset Password)
     path(
-        "paitent/reset-password/",
-        views.PaitentPasswordResetView.as_view(),
-        name="paitent-reset-password-api",
+        "patient/reset-password/",
+        views.PatientPasswordResetView.as_view(),
+        name="patient-reset-password-api",
     ),
     # (Confirm Reset Password)
     path(
-        "paitent/confirm-reset-password/",
-        views.PaitentConfirmResetPasswordView.as_view(),
-        name="paitent-confirm-reset-password",
+        "patient/confirm-reset-password/",
+        views.PatientConfirmResetPasswordView.as_view(),
+        name="patient-confirm-reset-password",
     ),
     # =================================================================
     # (Token Refreshing)

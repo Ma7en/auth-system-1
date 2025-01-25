@@ -1,6 +1,8 @@
 #
 from django.contrib.auth.models import BaseUserManager
 from django.utils.translation import gettext_lazy as _
+from django.db.models.signals import post_save
+from accounts import models
 
 
 # =================================================================
@@ -58,6 +60,12 @@ class UserManager(BaseUserManager):
         user.is_admin = True
         user.is_superuser = True
         user.save()
+
+        # Create Profile
+        if user.is_admin:
+            models.AdminProfile.objects.create(user=user)
+            user.admin_profile.save()
+
         return user
 
     # =================================================================
@@ -68,6 +76,12 @@ class UserManager(BaseUserManager):
         user = self.create_user(email, password, **extra_fields)
         user.is_doctor = True
         user.save()
+
+        # Create Profile
+        if user.is_doctor:
+            models.DoctorProfile.objects.create(user=user)
+            user.doctor_profile.save()
+
         return user
 
     # =================================================================
@@ -78,16 +92,28 @@ class UserManager(BaseUserManager):
         user = self.create_user(email, password, **extra_fields)
         user.is_staff = True
         user.save()
+
+        # Create Profile
+        if user.is_staff:
+            models.StaffProfile.objects.create(user=user)
+            user.staff_profile.save()
+
         return user
 
     # =================================================================
-    def create_paitentuser(self, email, password=None, **extra_fields):
+    def create_patientuser(self, email, password=None, **extra_fields):
         if password is None:
-            raise ValueError(_("Paitent must have a password"))
+            raise ValueError(_("Patient must have a password"))
 
         user = self.create_user(email, password, **extra_fields)
-        user.is_paitent = True
+        user.is_patient = True
         user.save()
+
+        # Create Profile
+        if user.is_patient:
+            models.PatientProfile.objects.create(user=user)
+            user.pateint_profile.save()
+
         return user
 
     # =================================================================

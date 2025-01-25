@@ -13,6 +13,7 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import RegexValidator
 from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 #
@@ -45,7 +46,7 @@ class User(AbstractBaseUser):
     is_admin = models.BooleanField(default=False)
     is_doctor = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
-    is_paitent = models.BooleanField(default=False)
+    is_patient = models.BooleanField(default=False)
 
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
@@ -77,6 +78,7 @@ class AdminProfile(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="admin_profile",
+        unique=False,
     )
 
     GENDER_CHOICES = (
@@ -124,17 +126,17 @@ class AdminProfile(models.Model):
         return f"{self.id}): ({self.user.email})"
 
 
-def create_user_admin_profile(sender, instance, created, **kwargs):
-    if created:
-        AdminProfile.objects.create(user=instance)
+# def create_user_admin_profile(sender, instance, created, **kwargs):
+#     if created:
+#         AdminProfile.objects.create(user=instance)
 
 
-def save_user_admin_profile(sender, instance, **kwargs):
-    instance.admin_profile.save()
+# def save_user_admin_profile(sender, instance, **kwargs):
+#     instance.admin_profile.save()
 
 
-post_save.connect(create_user_admin_profile, sender=User)
-post_save.connect(save_user_admin_profile, sender=User)
+# post_save.connect(create_user_admin_profile, sender=User)
+# post_save.connect(save_user_admin_profile, sender=User)
 
 
 # =================================================================
@@ -144,6 +146,7 @@ class DoctorProfile(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="doctor_profile",
+        unique=False,
     )
 
     GENDER_CHOICES = (
@@ -193,17 +196,17 @@ class DoctorProfile(models.Model):
         )
 
 
-def create_user_doctor_profile(sender, instance, created, **kwargs):
-    if created:
-        DoctorProfile.objects.create(user=instance)
+# def create_user_doctor_profile(sender, instance, created, **kwargs):
+#     if created:
+#         DoctorProfile.objects.create(user=instance)
 
 
-def save_user_doctor_profile(sender, instance, **kwargs):
-    instance.doctor_profile.save()
+# def save_user_doctor_profile(sender, instance, **kwargs):
+#     instance.doctor_profile.save()
 
 
-post_save.connect(create_user_doctor_profile, sender=User)
-post_save.connect(save_user_doctor_profile, sender=User)
+# post_save.connect(create_user_doctor_profile, sender=User)
+# post_save.connect(save_user_doctor_profile, sender=User)
 
 
 # =================================================================
@@ -213,6 +216,7 @@ class StaffProfile(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="staff_profile",
+        unique=False,
     )
 
     GENDER_CHOICES = (
@@ -260,26 +264,27 @@ class StaffProfile(models.Model):
         return f"{self.id}): ({self.phone_number})"
 
 
-def create_user_staff_profile(sender, instance, created, **kwargs):
-    if created:
-        StaffProfile.objects.create(user=instance)
+# def create_user_staff_profile(sender, instance, created, **kwargs):
+#     if created:
+#         StaffProfile.objects.create(user=instance)
 
 
-def save_user_staff_profile(sender, instance, **kwargs):
-    instance.staff_profile.save()
+# def save_user_staff_profile(sender, instance, **kwargs):
+#     instance.staff_profile.save()
 
 
-post_save.connect(create_user_staff_profile, sender=User)
-post_save.connect(save_user_staff_profile, sender=User)
+# post_save.connect(create_user_staff_profile, sender=User)
+# post_save.connect(save_user_staff_profile, sender=User)
 
 
 # =================================================================
-# *** Paitent Profile *** #
-class PaitentProfile(models.Model):
+# *** Patient Profile *** #
+class PatientProfile(models.Model):
     user = models.OneToOneField(
         User,
         on_delete=models.CASCADE,
-        related_name="paitent_profile",
+        related_name="patient_profile",
+        unique=False,
     )
 
     GENDER_CHOICES = (
@@ -294,7 +299,7 @@ class PaitentProfile(models.Model):
     )
 
     image = models.ImageField(
-        upload_to="user/paitent",
+        upload_to="user/patient",
         default="user/default-user.png",
         null=True,
         blank=True,
@@ -322,23 +327,23 @@ class PaitentProfile(models.Model):
     #     """
     #     to set table name in database
     #     """
-    #     db_table = "paitent_profile"
+    #     db_table = "patient_profile"
 
     def __str__(self):
         return f"{self.id}): ({self.phone_number})"
 
 
-def create_user_paitent_profile(sender, instance, created, **kwargs):
-    if created:
-        PaitentProfile.objects.create(user=instance)
+# def create_user_patient_profile(sender, instance, created, **kwargs):
+#     if created:
+#         PatientProfile.objects.create(user=instance)
 
 
-def save_user_paitent_profile(sender, instance, **kwargs):
-    instance.paitent_profile.save()
+# def save_user_patient_profile(sender, instance, **kwargs):
+#     instance.patient_profile.save()
 
 
-post_save.connect(create_user_paitent_profile, sender=User)
-post_save.connect(save_user_paitent_profile, sender=User)
+# post_save.connect(create_user_patient_profile, sender=User)
+# post_save.connect(save_user_patient_profile, sender=User)
 
 
 # ================================================================

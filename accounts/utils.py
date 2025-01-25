@@ -61,8 +61,8 @@ def send_otp_for_user(email, type_user="user"):
         #     subject = "Doctor Confirmation Email"
         # elif type_user == "staff":
         #     subject = "Staff Confirmation Email"
-        # elif type_user == "paitent":
-        #     subject = "Paitent Confirmation Email"
+        # elif type_user == "patient":
+        #     subject = "Patient Confirmation Email"
 
         subject = f"{type_user.capitalize() or "User".capitalize()} Confirmation Email"
 

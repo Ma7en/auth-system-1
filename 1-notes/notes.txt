@@ -8,7 +8,7 @@ superuser
 admin
 doctor
 staff
-paitent
+patient
 
 
 // =================================================================
@@ -17,7 +17,7 @@ superuser
 admin
 Teacher
 staff
-paitent
+patient
 
 
 
