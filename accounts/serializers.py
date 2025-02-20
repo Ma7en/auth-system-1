@@ -50,11 +50,9 @@ class AdminProfileSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         response = super().to_representation(instance)
-        # print("\n\n\n\n")
         # print(
         #     "response", response
         # )  # response {'id': 1, 'gender': None, 'image': 'http://127.0.0.1:8000/media/user/default-user.png', 'phone_number': None, 'age': None, 'created_at': '2025-01-22T14:08:28.986408Z', 'user': 1}
-        # print("\n\n\n\n")
         response["admin"] = UserSerializer(instance.user).data
         return response
 

@@ -96,7 +96,7 @@ class AdminProfileView(generics.RetrieveUpdateDestroyAPIView):
                 {
                     "success": "False",
                     "code": 1,
-                    "message": "Admin Profile not found",
+                    "message": "Admin Profile not found.",
                     "status_code": status_code,
                     "data": "",
                 }
@@ -108,14 +108,14 @@ class AdminProfileView(generics.RetrieveUpdateDestroyAPIView):
         admin_data = serializer.data
 
         if admin_data["admin"]["is_admin"] == False:
-            message = "Admin Profile whit this id is not Found"
+            message = "Admin Profile whit this id is not Found."
             return utils.FunReturn(
                 1,
                 message,
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Admin Profile retrieved successfully"
+        message = "Admin Profile retrieved Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -131,7 +131,7 @@ class AdminProfileView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
 
         admin_data = serializer.data
-        message = "Admin Profile updated successfully"
+        message = "Admin Profile updated Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -255,7 +255,7 @@ class AdminVerifyAccountView(APIView):
         otp.delete()
 
         doctor_data = serializers.UserSerializer(user).data
-        message = "Email verified successfully"
+        message = "Email verified Successfully"
         return utils.FunReturn(
             0,
             message,
@@ -291,12 +291,11 @@ class AdminLoginView(APIView):
             access_token = refresh.access_token
 
             admin_data = serializers.UserSerializer(admin).data
-
             status_code = status.HTTP_200_OK
             response = {
                 "success": "True",
                 "code": 0,
-                "message": "Login successfully.",
+                "message": "Admin Login Successfully.",
                 "status_code": status_code,
                 "data": admin_data,
                 "access_token": str(access_token),
@@ -331,14 +330,14 @@ class AdminIDView(APIView):
         admin_data = serializers.UserSerializer(admin).data
 
         if admin_data["is_admin"] == False:
-            message = "Admin whit this id is not Found"
+            message = "Admin whit this id is not Found."
             return utils.FunReturn(
                 1,
                 message,
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Admin retrieved successfully."
+        message = "Admin retrieved Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -495,7 +494,7 @@ class AdminLogoutView(APIView):
             admin_id_in_token = token.payload.get("user_id")
 
             if not admin_id_in_token:
-                message = "Invalid token: user_id missing."
+                message = "Invalid token: user id missing."
                 return utils.FunReturn(
                     1,
                     message,
@@ -628,7 +627,6 @@ class AdminConfirmResetPasswordView(APIView):
         models.OneTimeOTP.objects.filter(user=admin).delete()
 
         admin_data = serializers.UserSerializer(admin).data
-
         message = "Confirm Reset Password Successfully."
         return utils.FunReturn(
             0,
@@ -737,7 +735,7 @@ class DoctorProfileView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
 
         doctor_data = serializer.data
-        message = "Doctor Profile updated successfully"
+        message = "Doctor Profile updated Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -861,7 +859,7 @@ class DoctorVerifyAccountView(APIView):
         otp.delete()
 
         doctor_data = serializers.UserSerializer(user).data
-        message = "Email verified successfully"
+        message = "Email verified Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -901,7 +899,7 @@ class DoctorLoginView(APIView):
             response = {
                 "success": "True",
                 "code": 0,
-                "message": "Invalid OTP Code",
+                "message": "Doctor Login Successfully.",
                 "status_code": status_code,
                 "data": doctor_data,
                 "access_token": str(access_token),
@@ -943,7 +941,7 @@ class DoctorIDView(APIView):
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Doctor retrieved successfully."
+        message = "Doctor retrieved Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -987,7 +985,7 @@ class DoctorRefreshView(APIView):
 
             # Serialize the Doctor object
             doctor_data = serializers.UserSerializer(doctor).data
-            message = "Doctor retrieved successfully."
+            message = "Doctor retrieved Successfully."
             return utils.FunReturn(
                 0,
                 message,
@@ -1119,7 +1117,7 @@ class DoctorLogoutView(APIView):
 
             # Expire the token (logout the doctor)
             token.set_exp()
-            message = "Logout successful."
+            message = "Logout Successful."
             return utils.FunReturn(
                 0,
                 message,
@@ -1271,7 +1269,7 @@ class StaffRegisterView(generics.CreateAPIView):
 
             # Step 3: Return success response
             message = (
-                "Staff registered successfully, and We have sent an OTP to your Email!"
+                "Staff registered Successfully, and We have sent an OTP to your Email!"
             )
             return utils.FunReturn(
                 0,
@@ -1282,7 +1280,11 @@ class StaffRegisterView(generics.CreateAPIView):
 
         # Step 4:
         message = serializer.errors
-        return utils.FunReturn(1, message, status.HTTP_400_BAD_REQUEST)
+        return utils.FunReturn(
+            1,
+            message,
+            status.HTTP_400_BAD_REQUEST,
+        )
 
 
 # *** Staff (Profile) *** #
@@ -1315,14 +1317,14 @@ class StaffProfileView(generics.RetrieveUpdateDestroyAPIView):
         staff_data = serializer.data
 
         if staff_data["staff"]["is_staff"] == False:
-            message = "Staff Profile whit this id is not Found"
+            message = "Staff Profile whit this id is not Found."
             return utils.FunReturn(
                 1,
                 message,
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Staff Profile retrieved successfully"
+        message = "Staff Profile retrieved Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -1338,7 +1340,7 @@ class StaffProfileView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
 
         staff_data = serializer.data
-        message = "Staff Profile updated successfully"
+        message = "Staff Profile updated Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -1463,7 +1465,7 @@ class StaffVerifyAccountView(APIView):
         otp.delete()
 
         staff_data = serializers.UserSerializer(user).data
-        message = "Email verified successfully"
+        message = "Email verified Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -1487,7 +1489,6 @@ class StaffLoginView(APIView):
                     1,
                     message,
                     status.HTTP_403_FORBIDDEN,
-                    staff_data,
                 )
 
             # Generate refresh token and include staff_id in the token payload
@@ -1504,7 +1505,7 @@ class StaffLoginView(APIView):
             response = {
                 "success": "True",
                 "code": 0,
-                "message": "Invalid OTP Code",
+                "message": "Staff Login Successfully.",
                 "status_code": status_code,
                 "data": staff_data,
                 "access_token": str(access_token),
@@ -1546,7 +1547,7 @@ class StaffIDView(APIView):
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Staff retrieved successfully."
+        message = "Staff retrieved Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -1590,7 +1591,7 @@ class StaffRefreshView(APIView):
 
             # Serialize the Staff object
             staff_data = serializers.UserSerializer(staff).data
-            message = "Staff retrieved successfully."
+            message = "Staff retrieved Successfully."
             return utils.FunReturn(
                 0,
                 message,
@@ -1661,7 +1662,7 @@ class StaffChangePasswordView(APIView):
             utils.send_change_password_confirm(staff)
 
             staff_data = serializers.UserSerializer(staff).data
-            message = "Password changed successfully."
+            message = "Password changed Successfully."
             return utils.FunReturn(
                 0,
                 message,
@@ -1723,7 +1724,7 @@ class StaffLogoutView(APIView):
             # Expire the token (logout the staff)
             token.set_exp()
 
-            message = "Logout successful."
+            message = "Logout Successful."
             return utils.FunReturn(
                 0,
                 message,
@@ -1871,16 +1872,16 @@ class PatientRegisterView(generics.CreateAPIView):
                 # print(f"Error sending OTP to {patient.email}: {error_messages}")
                 raise ValidationError(
                     {
-                        "Error": "Invald Email",
+                        "Error": f"Error sending OTP to {patient.email}: {e}",
                     }
                 )
 
             # Step 3: Return success response
-            message = "patient registered successfully, and We have sent an OTP to your Email!"
+            message = "Patient registered Successfully, and We have sent an OTP to your Email!"
             return utils.FunReturn(
                 0,
                 message,
-                status.HTTP_200_OK,
+                status.HTTP_201_CREATED,
                 patient_data,
             )
 
@@ -1922,14 +1923,14 @@ class PatientProfileView(generics.RetrieveUpdateDestroyAPIView):
         patient_data = serializer.data
 
         if patient_data["patient"]["is_patient"] == False:
-            message = "Patient Profile whit this id is not Found"
+            message = "Patient Profile whit this id is not Found."
             return utils.FunReturn(
                 1,
                 message,
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Patient Profile retrieved successfully"
+        message = "Patient Profile retrieved Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -1945,7 +1946,7 @@ class PatientProfileView(generics.RetrieveUpdateDestroyAPIView):
         self.perform_update(serializer)
 
         patient_data = serializer.data
-        message = "Patient Profile updated successfully"
+        message = "Patient Profile updated Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -2049,7 +2050,7 @@ class PatientVerifyAccountView(APIView):
 
         # Check if the user is already verified
         if user.is_verified:
-            message = "Email verified successfully"
+            message = "Email already verified"
             return utils.FunReturn(
                 0,
                 message,
@@ -2070,7 +2071,7 @@ class PatientVerifyAccountView(APIView):
         otp.delete()
 
         doctor_data = serializers.UserSerializer(user).data
-        message = "Email verified successfully"
+        message = "Email verified Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -2110,7 +2111,7 @@ class PatientLoginView(APIView):
             response = {
                 "success": "True",
                 "code": 0,
-                "message": "Invalid OTP Code",
+                "message": "Patient Login Successfully.",
                 "status_code": status_code,
                 "data": patient_data,
                 "access_token": str(access_token),
@@ -2153,7 +2154,7 @@ class PatientIDView(APIView):
                 status.HTTP_404_NOT_FOUND,
             )
 
-        message = "Patient retrieved successfully."
+        message = "Patient retrieved Successfully."
         return utils.FunReturn(
             0,
             message,
@@ -2199,7 +2200,7 @@ class PatientRefreshView(APIView):
 
             # Serialize the Patient object
             patient_data = serializers.UserSerializer(patient).data
-            message = "patient retrieved successfully."
+            message = "Patient retrieved Successfully."
             return utils.FunReturn(
                 0,
                 message,
@@ -2331,7 +2332,7 @@ class PatientLogoutView(APIView):
             # Expire the token (logout the patient)
             token.set_exp()
 
-            message = "Logout successful."
+            message = "Logout Successful."
             return utils.FunReturn(
                 0,
                 message,

@@ -1,3 +1,4 @@
+#
 import random
 import logging
 
@@ -52,17 +53,6 @@ def send_otp_for_user(email, type_user="user"):
             "OTP": otp,
             "current_year": current_year,
         }
-
-        # if type_user == "user":
-        #     subject = "User Confirmation Email"
-        # elif type_user == "admin":
-        #     subject = "Admin Confirmation Email"
-        # elif type_user == "doctor":
-        #     subject = "Doctor Confirmation Email"
-        # elif type_user == "staff":
-        #     subject = "Staff Confirmation Email"
-        # elif type_user == "patient":
-        #     subject = "Patient Confirmation Email"
 
         subject = f"{type_user.capitalize() or "User".capitalize()} Confirmation Email"
 
@@ -127,17 +117,6 @@ def send_verification_email(user, otp):
 # *** Send OTP For Password Reset ***#
 def send_otp_for_password_reset(email, user_type="user"):
     otp = generate_otp()
-
-    # if user_type == "doctor":
-    #     try:
-    #         user = models.User.objects.get(email=email)
-    #     except models.User.DoesNotExist:
-    #         raise ValueError(f"Doctor with email {email} not found")
-    # elif user_type == "passenger":
-    #     try:
-    #         user = models.User.objects.get(email=email)
-    #     except models.User.DoesNotExist:
-    #         raise ValueError(f"Passenger with email {email} not found")
 
     try:
         user = models.User.objects.get(email=email)

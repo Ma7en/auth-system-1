@@ -126,19 +126,6 @@ class AdminProfile(models.Model):
         return f"{self.id}): ({self.user.email})"
 
 
-# def create_user_admin_profile(sender, instance, created, **kwargs):
-#     if created:
-#         AdminProfile.objects.create(user=instance)
-
-
-# def save_user_admin_profile(sender, instance, **kwargs):
-#     instance.admin_profile.save()
-
-
-# post_save.connect(create_user_admin_profile, sender=User)
-# post_save.connect(save_user_admin_profile, sender=User)
-
-
 # =================================================================
 # *** Doctor Profile *** #
 class DoctorProfile(models.Model):
@@ -196,19 +183,6 @@ class DoctorProfile(models.Model):
         )
 
 
-# def create_user_doctor_profile(sender, instance, created, **kwargs):
-#     if created:
-#         DoctorProfile.objects.create(user=instance)
-
-
-# def save_user_doctor_profile(sender, instance, **kwargs):
-#     instance.doctor_profile.save()
-
-
-# post_save.connect(create_user_doctor_profile, sender=User)
-# post_save.connect(save_user_doctor_profile, sender=User)
-
-
 # =================================================================
 # *** Staff Profile *** #
 class StaffProfile(models.Model):
@@ -262,19 +236,6 @@ class StaffProfile(models.Model):
 
     def __str__(self):
         return f"{self.id}): ({self.phone_number})"
-
-
-# def create_user_staff_profile(sender, instance, created, **kwargs):
-#     if created:
-#         StaffProfile.objects.create(user=instance)
-
-
-# def save_user_staff_profile(sender, instance, **kwargs):
-#     instance.staff_profile.save()
-
-
-# post_save.connect(create_user_staff_profile, sender=User)
-# post_save.connect(save_user_staff_profile, sender=User)
 
 
 # =================================================================
@@ -331,19 +292,6 @@ class PatientProfile(models.Model):
 
     def __str__(self):
         return f"{self.id}): ({self.phone_number})"
-
-
-# def create_user_patient_profile(sender, instance, created, **kwargs):
-#     if created:
-#         PatientProfile.objects.create(user=instance)
-
-
-# def save_user_patient_profile(sender, instance, **kwargs):
-#     instance.patient_profile.save()
-
-
-# post_save.connect(create_user_patient_profile, sender=User)
-# post_save.connect(save_user_patient_profile, sender=User)
 
 
 # ================================================================
